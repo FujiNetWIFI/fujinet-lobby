@@ -1,0 +1,2 @@
+@ECHO OFF
+LOBBY.EXE

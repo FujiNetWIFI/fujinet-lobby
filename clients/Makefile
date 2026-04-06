@@ -6,6 +6,8 @@ PLATFORMS += atari
 PLATFORMS += c64
 PLATFORMS += coco
 PLATFORMS += msxrom
+# msdos must be built separately via the make-exp bash script:
+#PLATFORMS += msdos
 
 # You can run 'make <platform>' to build for a specific platform,
 # or 'make <platform>/<target>' for a platform-specific target.
@@ -47,9 +49,13 @@ include mekkogx/toplevel-rules.mk
 #   apple2/disk: apple2/custom-step1 apple2/custom-step2
 
 AUTOEXEC_COCO = src/coco/autoexec.bas
+AUTOEXEC_MSDOS = src/msdos/AUTOEXEC.BAT
 
 coco/disk-post::
 	decb copy -t $(AUTOEXEC_COCO) $(R2R_DIR)/coco/$(PRODUCT).dsk,AUTOEXEC.BAS
+
+msdos/disk-post::
+	mcopy -t -i $(R2R_DIR)/msdos/$(PRODUCT).img $(AUTOEXEC_MSDOS) "::AUTOEXEC.BAT"
 
 apple2/disk-post::
 	ac -d $(R2R_DIR)/apple2/$(PRODUCT).po BASIC.SYSTEM
