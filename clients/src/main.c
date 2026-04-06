@@ -91,7 +91,16 @@ char panel_spacer_string[] = {0xA4,0xE4,0xE4,0xB4,0xB4,0xE4,0xE4,0xA4,0};
   #define BOOT_WORD "play"
 #endif
 
-#define LIST_X 0
+#ifdef BUILD_MSDOS
+  #define PLATFORM "msdos"
+  #define ACTION_VERB ", press"
+  #define BOOT_KEY "ENTER"
+  #define BOOT_WORD "play"
+  #define CH_ESC 0x1B
+  #define LIST_X 1
+#else
+  #define LIST_X 0
+#endif
 #define LIST_W (SCREEN_WIDTH - 2 * LIST_X)
 
 #ifdef __VIC20__
@@ -119,6 +128,9 @@ int8_t selected_server = 0;    // Currently selected server
 
 uint8_t screen_height;
 
+#ifdef __WATCOMC__
+#pragma pack(push, 1)
+#endif
 typedef struct { // 189 bytes
   uint8_t game_type;
   char game[17];
@@ -131,6 +143,9 @@ typedef struct { // 189 bytes
   uint8_t max_players;
   uint16_t ping_age;  // Ignored in client. Also, would need to support different endians in server for binary transfer mode
 } ServerDetails;
+#ifdef __WATCOMC__
+#pragma pack(pop)
+#endif
 
 typedef struct {
   uint8_t server_count;
@@ -157,14 +172,19 @@ void banner(void) {
   uint8_t j;
   clrscr();
 
+#ifdef BUILD_MSDOS
+  draw_box(0, 0, SCREEN_WIDTH, BOTTOM_PANEL_Y);
+#else
+  gotoxy(0,1);
+  for(j=0;j<SCREEN_WIDTH/8;j++)
+    cputs(PANEL_SPACER);
+#endif
+
+  gotoxy(LIST_X, 0);
   if (qa_mode)
     cputs("## QA MODE ##");
   else
     cputs("#FUJINET GAME LOBBY");
-
-  gotoxy(0,1);
-  for(j=0;j<SCREEN_WIDTH/8;j++)
-    cputs(PANEL_SPACER);
 }
 
 
@@ -250,9 +270,11 @@ void display_servers(int old_server) {
     return;
 
   cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
+#ifndef BUILD_MSDOS
   gotoxy(0,BOTTOM_PANEL_Y-1);
   for(j=0;j<SCREEN_WIDTH/8;j++)
     cputs(PANEL_SPACER);
+#endif
 
   if (lobby.server_count>0)
   {
@@ -286,7 +308,7 @@ void refresh_servers(bool clearScreen) {
     page_size = MAX_PAGE_SIZE - (qa_mode ? 3 : 0);
     
     cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
-    cputsxy(SCREEN_WIDTH/2-11,BOTTOM_PANEL_Y+1,"Retrieving Servers..");
+    cputsxy(0,BOTTOM_PANEL_Y+1,"Retrieving Servers..");
 
     strcpy(buf, qa_mode ? LOBBY_QA_ENDPOINT : LOBBY_ENDPOINT);
     strcat(buf, "?bin=1&platform=" PLATFORM "&pagesize=");
@@ -311,8 +333,7 @@ void refresh_servers(bool clearScreen) {
 
     if (api_read_result<0) {
       if (attempt) {
-        cputs("\r\n\r\nCould not query Lobby!\r\nError: ");
-        
+        cputsxy(0,BOTTOM_PANEL_Y+1,"Could not query Lobby! Error: ");
         itoa(api_read_result, buf, 10);
         cputs(buf);
       } else {
@@ -322,7 +343,7 @@ void refresh_servers(bool clearScreen) {
       }
     } else if (api_read_result < sizeof(ServerDetails) || lobby.server_count == 0 || lobby.server_count > page_size) {
       if (attempt) {
-        cputs("\r\nNo servers are online.");
+        cputsxy(0,BOTTOM_PANEL_Y+1,"No servers are online.");
       }
       lobby.server_count = 0;
     } else {
@@ -346,10 +367,11 @@ void refresh_servers(bool clearScreen) {
  */
 void get_username() {
 
-  cputsxy(LIST_X,3,"Enter your username:\r\n\r\n[         ]");
+  cputsxy(LIST_X,8,"Enter your username:");
+  cputsxy(LIST_X,10,"[         ]");
 
   while (1) {
-    inputField(LIST_X+1,5,8,username);
+    inputField(LIST_X+1,10,8,username);
     if (strlen(username)>=2 && strlen(username)<=8)
       break;
   }
@@ -516,6 +538,9 @@ void event_loop() {
       case 'q':
       case 'Q':
         qa_mode = !qa_mode;
+        page = 0;
+        offset = 0;
+        selected_server = 0;
         refresh_servers(true);
         break;
       case 'r':
