@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <coco.h>
 #include <joystick.h>
-#include "../fujinet-fuji.h"
+#include <fujinet-fuji.h>
 
 extern char panel_spacer_string[];
 extern DeviceSlot device_slots[1];

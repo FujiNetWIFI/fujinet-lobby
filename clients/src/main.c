@@ -6,14 +6,16 @@
  * @license gpl v. 3
  */
 
+#ifndef BUILD_ADAM
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <conio.h>
 #include <string.h>
 
-#include "fujinet-fuji.h"
-#include "fujinet-network.h"
+#include <fujinet-fuji.h>
+#include <fujinet-network.h>
 
 #include "platform.h"
 #include "io.h"
@@ -89,6 +91,9 @@ char panel_spacer_string[] = {0xA4,0xE4,0xE4,0xB4,0xB4,0xE4,0xE4,0xA4,0};
   #define BOOT_WORD "play"
 #endif
 
+#define LIST_X 0
+#define LIST_W (SCREEN_WIDTH - 2 * LIST_X)
+
 #ifdef __VIC20__
   #define PLATFORM "vic20"
   #undef SCREEN_WIDTH
@@ -115,15 +120,15 @@ int8_t selected_server = 0;    // Currently selected server
 uint8_t screen_height;
 
 typedef struct { // 189 bytes
-  uint8_t game_type;   
-  char game[17];       
-  char server[33];     
-  char url[65];        
-  char client_url[65]; 
-  char region[3];      
-  uint8_t online;         
-  uint8_t players;     
-  uint8_t max_players; 
+  uint8_t game_type;
+  char game[17];
+  char server[33];
+  char url[65];
+  char client_url[65];
+  char region[3];
+  uint8_t online;
+  uint8_t players;
+  uint8_t max_players;
   uint16_t ping_age;  // Ignored in client. Also, would need to support different endians in server for binary transfer mode
 } ServerDetails;
 
@@ -151,16 +156,15 @@ void pause(void) {
 void banner(void) {
   uint8_t j;
   clrscr();
-  
+
   if (qa_mode)
     cputs("## QA MODE ##");
   else
     cputs("#FUJINET GAME LOBBY");
-  
+
   gotoxy(0,1);
   for(j=0;j<SCREEN_WIDTH/8;j++)
     cputs(PANEL_SPACER);
-  
 }
 
 
@@ -191,14 +195,14 @@ void display_servers(int old_server) {
 
       if (old_server<0)
       {
-        cputsxy(0,y,prevGame);
-        if (j>0) 
+        cputsxy(LIST_X,y,prevGame);
+        if (j>0)
         {
-           cclear(SCREEN_WIDTH-1-strlen(prevGame));
+           cclear(LIST_W-1-strlen(prevGame));
         }
-        else 
+        else
         {
-          cclear(SCREEN_WIDTH-7-strlen(prevGame));
+          cclear(LIST_W-7-strlen(prevGame));
           cputs("PLAYERS");
         }
       }
@@ -224,14 +228,14 @@ void display_servers(int old_server) {
     // Printing full space to overwrite the existing server, a bit convoluted but
     // prevents flickering.
     revers(j == selected_server ? 1 : 0);
-    cputcxy(0,y,' ');
-    cputs(server->server);    
+    cputcxy(LIST_X,y,' ');
+    cputs(server->server);
 
     itoa(server->players, buf, 10);
     strcat(buf, "/");
     itoa(server->max_players, buf+strlen(buf), 10);
-    
-    cclear(SCREEN_WIDTH-1-strlen(server->server)-strlen(buf));
+
+    cclear(LIST_W-1-strlen(server->server)-strlen(buf));
     cputs((char *)buf);
     
      // Reset reverse
@@ -249,7 +253,7 @@ void display_servers(int old_server) {
   gotoxy(0,BOTTOM_PANEL_Y-1);
   for(j=0;j<SCREEN_WIDTH/8;j++)
     cputs(PANEL_SPACER);
-  
+
   if (lobby.server_count>0)
   {
     gotoxy(0,BOTTOM_PANEL_Y);
@@ -265,8 +269,8 @@ void display_servers(int old_server) {
   gotoxy(SCREEN_WIDTH/2-1,screen_height-1);
   revers(1); cputs("Q"); revers(0);
   cputs("A");
-  
-  gotoxy(SCREEN_WIDTH-11,screen_height-1);
+
+  gotoxy(SCREEN_WIDTH-11-LIST_X,screen_height-1);
   revers(1); cputs("C"); revers(0);
   cputs("hange name");
 }
@@ -298,12 +302,12 @@ void refresh_servers(bool clearScreen) {
     if (clearScreen && (attempt==1 || api_read_result>0)) {
       banner();
       if (qa_mode) {
-        cputsxy(0,BOTTOM_PANEL_Y-3,"QA mode is for testing new games");
-        cputsxy(0,BOTTOM_PANEL_Y-2,"Visit: LOBBY.FUJINET.ONLINE/DOCS");
+        cputsxy(LIST_X,BOTTOM_PANEL_Y-3,"QA mode is for testing new games");
+        cputsxy(LIST_X,BOTTOM_PANEL_Y-2,"Visit: LOBBY.FUJINET.ONLINE/DOCS");
       }
     }
 
-    cputsxy(SCREEN_WIDTH-strlen(username),0, username);
+    cputsxy(SCREEN_WIDTH-LIST_X-strlen(username),0, username);
 
     if (api_read_result<0) {
       if (attempt) {
@@ -342,10 +346,10 @@ void refresh_servers(bool clearScreen) {
  */
 void get_username() {
 
-  cputsxy(0,3,"Enter your username:\r\n\r\n[         ]");
-  
+  cputsxy(LIST_X,3,"Enter your username:\r\n\r\n[         ]");
+
   while (1) {
-    inputField(1,5,8,username);
+    inputField(LIST_X+1,5,8,username);
     if (strlen(username)>=2 && strlen(username)<=8)
       break;
   }
@@ -363,7 +367,7 @@ void register_user(void) {
   if (strlen(username)==0)
     get_username();
 
-  cputs("\r\n\r\nWelcome, ");
+  cputsxy(LIST_X,2,"Welcome, ");
   cputs(username);
   cputs(".");
 }
@@ -573,3 +577,5 @@ void main(void)
   refresh_servers(true);
   event_loop();
 }
+
+#endif /* BUILD_ADAM */
