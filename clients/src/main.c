@@ -407,7 +407,7 @@ void mount() {
   if (lobby.server_count==0 || selected_server >= lobby.server_count || lobby.servers[selected_server].game_type == 0) {
     return;
   } 
-
+  
   // // Remove the protocol for now, assume TNFS://
   if (client_path = strstr(lobby.servers[selected_server].client_url, "://"))
     client_path+=3;
@@ -418,12 +418,11 @@ void mount() {
     strcpy(buf,client_path);
     buf[SCREEN_WIDTH/2-1]=buf[SCREEN_WIDTH/2]='.';
     strcpy(buf+SCREEN_WIDTH/2+1,client_path+strlen(client_path)-SCREEN_WIDTH/2+1);
-    client_path = buf;
   }
   cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
 
   cputsxy(0,BOTTOM_PANEL_Y, MOUNTING "\r\n");
-  cputs(client_path);
+  cputs(buf);
 
   // Get the host and filename
   if (filename = strstr(client_path,"/")) {
