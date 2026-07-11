@@ -414,8 +414,8 @@ void mount() {
   else
     client_path = lobby.servers[selected_server].client_url;
 
+  strcpy(buf,client_path);
   if (strlen(client_path)>SCREEN_WIDTH) {
-    strcpy(buf,client_path);
     buf[SCREEN_WIDTH/2-1]=buf[SCREEN_WIDTH/2]='.';
     strcpy(buf+SCREEN_WIDTH/2+1,client_path+strlen(client_path)-SCREEN_WIDTH/2+1);
   }
