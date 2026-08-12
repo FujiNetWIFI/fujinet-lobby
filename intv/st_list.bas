@@ -260,7 +260,7 @@ lb_render_list: PROCEDURE
     PRINT AT screenpos(0,LEGEND_ROW) COLOR COL_DIM,"PLAY 2/3=PG 1=N 9=R "
 END
 
-lit_title: DATA 76,79,66,66,89
+lit_title: DATA 76,79,66,66,89,0
 
 ' lb_same_game: sets lb_same = 1 if record lb_i's REC_GAME matches record
 ' (lb_i-1)'s, byte-for-byte over the full 17-byte field.

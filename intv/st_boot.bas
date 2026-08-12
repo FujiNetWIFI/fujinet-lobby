@@ -6,15 +6,17 @@
 '
 ' Entered with sel_rec already pointing at the chosen record in SC_RECS.
 ' Does the C client's mount() steps in order: strip the URL scheme, split
-' host/filename, find-or-claim a host slot, mount it, stage the full path,
+' host/filename, claim the last host slot, mount it, stage the full path,
 ' write the server URL to the appkey the booted game will read, then hand
 ' off to MOUNT_IMAGE with its own progress bar. On any failure, falls back
 ' to state = ST_LIST rather than main.c's "press RETURN to continue" pause
 ' -- there's no keyboard to dismiss a message with, so failures are just
 ' shown briefly and the list resumes.
 
-    DIM bt_hstart, bt_t, bt_seq, bt_pct, bt_lastpct
-    DIM #bt_addr, bt_i, bt_j, bt_c, bt_slash, bt_found, bt_slot
+    CONST BT_SLASH_NONE = 255
+
+    DIM bt_t, bt_seq, bt_pct, bt_lastpct
+    DIM #bt_addr, bt_i, bt_j, bt_c, bt_slash, bt_slot
 
 do_boot: PROCEDURE
     GOSUB scr_clear
@@ -27,6 +29,7 @@ do_boot: PROCEDURE
     IF (PEEK(#bt_addr + REC_GAMETYPE) AND 255) = 0 THEN
         PRINT AT screenpos(0,11) COLOR COL_ERROR,"INVALID ENTRY       "
         GOSUB boot_pause
+        list_shown = 0
         state = ST_LIST
         RETURN
     END IF
@@ -52,46 +55,53 @@ do_boot: PROCEDURE
     ' host = up to (not including) the first '/' from bt_i; filename =
     ' everything from that '/' onward (kept, with its leading '/', so
     ' SC_BOOTPATH is a proper absolute path).
-    bt_slash = -1
+    '
+    ' Sentinel is 255, not -1: bt_slash is an IntyBASIC "8-bit" variable,
+    ' which lives in the console's System RAM ($100-$1EF) -- physically
+    ' 8 bits wide. Storing -1 ($FFFF) there only latches the low byte, so
+    ' it silently reads back as 255, not -1, and every "= -1" comparison
+    ' against it would then be comparing against a value that can never
+    ' occur. 255 is outside any real index into a <=65-byte field, so it's
+    ' safe as a sentinel that actually survives the round trip.
+    bt_slash = BT_SLASH_NONE
     bt_j = bt_i
-    WHILE bt_j < fn_len AND bt_slash = -1
+    WHILE bt_j < fn_len AND bt_slash = BT_SLASH_NONE
         IF (PEEK(#bt_addr + REC_CLIENTURL + bt_j) AND 255) = 47 THEN bt_slash = bt_j
         bt_j = bt_j + 1
     WEND
-    IF bt_slash = -1 THEN
+    IF bt_slash = BT_SLASH_NONE THEN
         PRINT AT screenpos(0,11) COLOR COL_ERROR,"INVALID CLIENT URL  "
         GOSUB boot_pause
+        list_shown = 0
         state = ST_LIST
         RETURN
     END IF
 
-    ' Host slot: read the table, case-insensitively match the host against
-    ' all 8 slots; if not found, overwrite the LAST slot (7) and write the
-    ' table back -- same policy as main.c's mount().
+    ' Host slot: always the very last slot, and always overwritten fresh --
+    ' the other 7 slots on a real unit accumulate whatever other clients
+    ' (or old, pre-split builds of this one) have left in them, so a
+    ' case-insensitive "does it already match" check could get fooled by
+    ' leftover garbage and skip writing the real value. fj_read_host_slots
+    ' still runs first so the WRITE_HOST_SLOTS payload preserves the other
+    ' 7 slots untouched.
     GOSUB fj_read_host_slots
-    bt_found = 0
-    FOR bt_slot = 0 TO NUM_HOST_SLOTS - 1
-        GOSUB bt_slot_matches
-        IF bt_c = 1 THEN
-            bt_found = 1
-            EXIT FOR
-        END IF
-    NEXT bt_slot
-    IF bt_found = 0 THEN
-        bt_slot = NUM_HOST_SLOTS - 1
-        FOR bt_j = 0 TO bt_slash - bt_i - 1
-            POKE (SC_HOSTS + bt_slot * HOST_NAME_LEN + bt_j), PEEK(#bt_addr + REC_CLIENTURL + bt_i + bt_j) AND 255
-        NEXT bt_j
-        POKE (SC_HOSTS + bt_slot * HOST_NAME_LEN + (bt_slash - bt_i)), 0
-        GOSUB fj_write_host_slots
-    END IF
+    bt_slot = NUM_HOST_SLOTS - 1
+    FOR bt_j = 0 TO bt_slash - bt_i - 1
+        POKE (SC_HOSTS + bt_slot * HOST_NAME_LEN + bt_j), PEEK(#bt_addr + REC_CLIENTURL + bt_i + bt_j) AND 255
+    NEXT bt_j
+    POKE (SC_HOSTS + bt_slot * HOST_NAME_LEN + (bt_slash - bt_i)), 0
+    GOSUB fj_write_host_slots
 
     host_slot = bt_slot
     fc_hs = host_slot
     GOSUB fj_mount_host
     IF fn_ok = 0 THEN
+        PRINT AT screenpos(0,8) COLOR COL_DIM,"ERR CODE:"
+        #s_val = #mb_err
+        PRINT AT screenpos(10,8) COLOR COL_VALUE,<.3>#s_val
         PRINT AT screenpos(0,11) COLOR COL_ERROR,"MOUNT FAILED        "
         GOSUB boot_pause
+        list_shown = 0
         state = ST_LIST
         RETURN
     END IF
@@ -134,26 +144,6 @@ do_boot: PROCEDURE
 
     ' Only reached on failure/timeout -- success resets the console.
     GOSUB boot_fail
-END
-
-' bt_slot_matches: case-insensitive compare of SC_HOSTS slot `bt_slot`
-' against the host substring [bt_i, bt_slash) of REC_CLIENTURL. Sets bt_c
-' to 1/0. IntyBASIC procedures take no arguments; bt_slot/bt_i/bt_slash are
-' already module globals.
-bt_slot_matches: PROCEDURE
-    bt_c = 1
-    IF (PEEK(SC_HOSTS + bt_slot * HOST_NAME_LEN) AND 255) = 0 THEN
-        bt_c = 0
-        RETURN
-    END IF
-    FOR bt_j = 0 TO bt_slash - bt_i - 1
-        bt_hstart = PEEK(SC_HOSTS + bt_slot * HOST_NAME_LEN + bt_j) AND 255
-        IF bt_hstart >= 97 AND bt_hstart <= 122 THEN bt_hstart = bt_hstart - 32
-        bt_pct = PEEK(#bt_addr + REC_CLIENTURL + bt_i + bt_j) AND 255
-        IF bt_pct >= 97 AND bt_pct <= 122 THEN bt_pct = bt_pct - 32
-        IF bt_hstart <> bt_pct THEN bt_c = 0
-    NEXT bt_j
-    IF (PEEK(SC_HOSTS + bt_slot * HOST_NAME_LEN + (bt_slash - bt_i)) AND 255) <> 0 THEN bt_c = 0
 END
 
 boot_pause: PROCEDURE
@@ -242,5 +232,6 @@ boot_fail: PROCEDURE
     FOR bt_t = 0 TO 119
         WAIT
     NEXT bt_t
+    list_shown = 0
     state = ST_LIST
 END
