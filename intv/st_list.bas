@@ -18,6 +18,7 @@
     DIM #lb_addr, #lb_paddr
     DIM pn_val, pn_h, pn_t, pn_o, pn_started
     DIM #dp_start, pstk_depth
+    DIM lb_full
 
 ' ---------------------------------------------------------------------------
 ' URL literals (ASCII DATA). IntyBASIC has no string constants; a VARPTR
@@ -118,7 +119,7 @@ do_list: PROCEDURE
         RETURN
     END IF
     IF in_key = KEYPAD_3 THEN
-        IF num_rows >= ENTRIES_PER_PAGE THEN
+        IF lb_full = 1 THEN
             GOSUB lb_push_pstk
             #dp_start = #dp_start + num_rows
             list_shown = 0
@@ -185,6 +186,13 @@ lb_fetch_page: PROCEDURE
     NEXT lb_i
 
     GOSUB net_close
+
+    ' lb_render_list truncates num_rows further to whatever fits on screen
+    ' (headers eat rows too), so it can no longer tell "more pages exist"
+    ' apart from "this page didn't all fit". Latch that signal here, off
+    ' the server's actual reply, before render gets a chance to shrink it.
+    lb_full = 0
+    IF num_rows >= ENTRIES_PER_PAGE THEN lb_full = 1
 
     ' Overshoot: paged past the end via NEXT and got nothing back. Undo by
     ' popping the page-start stack and retrying, exactly like config's
