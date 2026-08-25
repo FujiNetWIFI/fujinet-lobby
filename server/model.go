@@ -172,6 +172,27 @@ func (s *GameServer) CheckInput() (err error) {
 
 	return err
 }
+
+// Reject addresses that no client outside the publisher's own network could reach.
+// Kept separate from CheckInput so CheckInput stays free of the PRODUCTION global.
+func (s *GameServer) CheckRoutableAddresses() (err error) {
+
+	host, unroutable := UnroutableURLHost(s.Serverurl)
+
+	err = ErrorIf(unroutable, fmt.Errorf("key: 'GameServer.ServerUrl' Error: Field validation host (%s) is not publicly routable", host))
+
+	for _, client := range s.Clients {
+
+		host, unroutable := UnroutableURLHost(client.Url)
+
+		err = errors.Join(err,
+			ErrorIf(unroutable, fmt.Errorf("key: 'GameServer.Clients.Url' Error: Field validation host (%s) is not publicly routable", host)),
+		)
+	}
+
+	return err
+}
+
 func (s *GameServerDelete) CheckInput() (err error) {
 
 	err = errors.Join(

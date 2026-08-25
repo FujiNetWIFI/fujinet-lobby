@@ -35,10 +35,11 @@ var (
 	TIME               uint64
 	STARTEDON          time.Time
 	EVTSERVER_WEBHOOKS []string
+	PRODUCTION         bool
 )
 
 const (
-	VERSION   = "5.5.6"
+	VERSION   = "5.5.7"
 	STRINGVER = "fujinet persistent lobby  " + VERSION + "/" + runtime.GOOS + " (c) Roger Sen 2025"
 )
 
@@ -51,12 +52,14 @@ var SERVERS_HTML []byte
 func main() {
 
 	var srvaddr string
-	var evtaddrs ArrayOfParams
+	var evtaddrs, trustedproxies ArrayOfParams
 	var help, version bool
 
 	flag.StringVar(&srvaddr, "srvaddr", ":8080", "<address:port> for http server")
 	flag.Var(&evtaddrs, "evtaddr", "<http> for event server webhook (multiple values accepted)")
+	flag.Var(&trustedproxies, "trustedproxy", "<ip|cidr> of a reverse proxy allowed to set X-Forwarded-For (multiple values accepted)")
 
+	flag.BoolVar(&PRODUCTION, "prod", false, "reject publishes coming from, or advertising, a non-routable address")
 	flag.BoolVar(&version, "version", false, "show current version")
 	flag.BoolVar(&help, "help", false, "show this help")
 
@@ -81,6 +84,8 @@ func main() {
 	init_webhook(evtaddrs)
 
 	router := gin.Default()
+
+	init_trusted_proxies(router, trustedproxies)
 
 	router.GET("/", ShowServersHtml)
 	router.GET("/docs", ShowDocs)
@@ -111,7 +116,37 @@ func init_logger() {
 
 	if ok && value == "PROD" {
 		DEBUG.SetActive(false)
+
+		// -prod already having set this true is fine, the flag can only turn it on
+		PRODUCTION = true
 	}
+
+	if PRODUCTION {
+		INFO.Println("running in production mode: publishes from, or advertising, a non-routable address will be rejected")
+	} else {
+		INFO.Println("running in development mode: non-routable addresses are accepted")
+	}
+}
+
+// tell gin which hops may set X-Forwarded-For. Without this gin trusts the header
+// from any source, so the source address check below could be bypassed by simply
+// sending a forged one.
+func init_trusted_proxies(router *gin.Engine, trustedproxies ArrayOfParams) {
+
+	if len(trustedproxies) == 0 {
+		if PRODUCTION {
+			WARN.Println("no -trustedproxy given: X-Forwarded-For is trusted from any source and the client address cannot be relied upon")
+		}
+
+		return
+	}
+
+	if err := router.SetTrustedProxies(trustedproxies); err != nil {
+		ERROR.Printf("unable to set trusted proxies %v (%s). X-Forwarded-For will be trusted from any source.", trustedproxies, err)
+		return
+	}
+
+	INFO.Printf("trusting X-Forwarded-For from %v", trustedproxies)
 }
 
 func init_scheduler() error {

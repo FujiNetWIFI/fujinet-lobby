@@ -42,6 +42,9 @@
 }
             </code>
             </pre>
+
+            <p>A public lobby only accepts addresses that the rest of the world can actually reach. The <code>serverurl</code> and every client <code>url</code> must point at a publicly routable host: private ranges (<code>192.168.x.x</code>, <code>10.x.x.x</code>, <code>172.16-31.x.x</code>), loopback, link-local and carrier-grade NAT addresses are rejected with an HTTP 400, and a registration arriving from one of those addresses is rejected with an HTTP 403. A lobby run locally for development accepts them as normal.</p>
+
             <table>
               <thead>
                 <tr><th>Field</th>
@@ -63,7 +66,7 @@
                   <td>required<br/>printable ascii characters (regex="^[\x20-\x7E]*$")<br/> 2 chars max</td></tr>
                 <tr><td>serverurl</td>
                   <td>url of the server where game clients will connect</td>
-                  <td>required<br/>valid url<br/>64 url chars max</td></tr>
+                  <td>required<br/>valid url<br/>64 url chars max<br/>publicly routable host</td></tr>
                 <tr><td>status</td>
                   <td>status of the game server</td>
                   <td>required<br/>status = online|offline</td></tr>

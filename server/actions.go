@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -208,8 +209,42 @@ func ShowServers(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, GameServerSlice)
 }
 
+// Reject a publish arriving from an address nobody else could reach. Writes the
+// error response itself and returns false when the request must not proceed.
+//
+// An address we cannot parse fails open: an empty or malformed RemoteAddr should
+// not take the endpoint down.
+func checkRoutableSource(c *gin.Context) bool {
+
+	clientip := c.ClientIP()
+
+	addr, err := netip.ParseAddr(clientip)
+
+	if err != nil {
+		WARN.Printf("unable to parse the client address %q (%s). Allowing the request.", clientip, err)
+		return true
+	}
+
+	if !IsUnroutableAddr(addr) {
+		return true
+	}
+
+	WARN.Printf("rejected a publish from the non-routable address %s", clientip)
+
+	c.AbortWithStatusJSON(http.StatusForbidden,
+		gin.H{"success": false,
+			"message": "Publishing is not permitted from a non-routable address",
+			"errors":  []string{"source address " + clientip + " is not publicly routable"}})
+
+	return false
+}
+
 // insert/update uploaded server to the database. It also covers delete
 func UpsertServer(c *gin.Context) {
+
+	if PRODUCTION && !checkRoutableSource(c) {
+		return
+	}
 
 	server := GameServer{}
 
@@ -223,6 +258,10 @@ func UpsertServer(c *gin.Context) {
 	}
 
 	err2 := server.CheckInput()
+
+	if PRODUCTION {
+		err2 = errors.Join(err2, server.CheckRoutableAddresses())
+	}
 
 	err := errors.Join(err1, err2)
 

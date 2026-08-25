@@ -4,7 +4,7 @@ The FujiNet Lobby Server is a lightweight game server registry service written i
 
 ## Overview
 
-Version: 5.4.1
+Version: 5.5.7
 
 This service acts as a central registry for the FujiNet Game System, allowing:
 - Game servers to register their availability
@@ -83,12 +83,47 @@ This service acts as a central registry for the FujiNet Game System, allowing:
 
 - `-srvaddr`: HTTP server address and port (default ":8080")
 - `-evtaddr`: Event server webhook URL
+- `-prod`: Enable production mode (see below)
+- `-trustedproxy`: IP or CIDR of a reverse proxy allowed to set `X-Forwarded-For` (may be repeated)
 - `-version`: Show current version
 - `-help`: Show help information
 
 ## Environment Variables
 
-- `LOG_LEVEL=PROD`: Disables debug logging when set to PROD
+- `LOG_LEVEL=PROD`: Disables debug logging and enables production mode
+
+## Production Mode
+
+Production mode is enabled by the `-prod` flag or by `LOG_LEVEL=PROD`. When it is
+on, `POST /server` rejects registrations involving addresses that are not reachable
+from the public internet:
+
+- **HTTP 403** if the request itself arrives from a non-routable address
+- **HTTP 400** if the `serverurl`, or any client `url`, points at a non-routable host
+
+Non-routable covers private ranges (10/8, 172.16/12, 192.168/16, fc00::/7),
+loopback, link-local, carrier-grade NAT (100.64/10), multicast, the reserved and
+documentation ranges, and the names `localhost`, `*.local`, `*.internal`, `*.lan`
+and `*.home.arpa`. Hostnames are never resolved via DNS — only literal addresses
+and those local-only suffixes are matched.
+
+Without production mode the server behaves exactly as before, so a lobby run
+locally against a LAN game server keeps working.
+
+### Running behind a reverse proxy
+
+`c.ClientIP()` is derived from `X-Forwarded-For`, which Gin trusts from any source
+by default. If the lobby sits behind a reverse proxy, pass `-trustedproxy` with the
+proxy's address so the source check reads the real client address and cannot be
+bypassed with a forged header:
+
+```bash
+LOG_LEVEL=PROD ./lobbyPersist -srvaddr :8080 -trustedproxy 10.0.0.0/8
+```
+
+The proxy must set `X-Forwarded-For`. If it does not, `c.ClientIP()` resolves to
+the proxy's own address, and a proxy on the same LAN would cause every registration
+to be rejected.
 
 ## Database Schema
 

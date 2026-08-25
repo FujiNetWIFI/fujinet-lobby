@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,15 @@ func TestMain(m *testing.M) {
 	DB.SetActive(false) // we don't want the DB logger to pollute the test
 	DEBUG = NewCustomLogger("debug", "\u001b[36mDEBUG: \u001B[0m", log.LstdFlags)
 	DEBUG.SetActive(false)
+
+	// handlers log through these, an uninitialised one is a nil *log.Logger and
+	// panics the request rather than failing the assertion we care about
+	INFO = NewCustomLogger("info", "INFO: ", log.LstdFlags)
+	INFO.SetActive(false)
+	WARN = NewCustomLogger("warn", "WARN: ", log.LstdFlags)
+	WARN.SetActive(false)
+	ERROR = NewCustomLogger("error", "ERROR: ", log.LstdFlags)
+	ERROR.SetActive(false)
 
 	os.Exit(m.Run())
 }
@@ -470,6 +480,125 @@ func TestVersion(t *testing.T) {
 	if errors := assertHTTPAnswerJSON(w, 200, `{"success": true}`); errors != nil {
 		for _, err := range errors {
 			t.Errorf("%s %s %s", req.Method, req.URL.Path, err)
+		}
+	}
+}
+
+// A publish used by the production mode tests. The caller swaps in the host it
+// wants to exercise.
+func privateAddressServer(serverurl string, clienturl string) string {
+	return `{
+        "game": "Test Game",
+        "appkey": 1,
+        "server": "lanbox",
+        "region": "us",
+        "serverurl": "` + serverurl + `",
+        "status": "online",
+        "maxplayers": 2,
+        "curplayers": 0,
+        "clients": [
+            {"platform":"atari", "url":"` + clienturl + `"}
+        ]
+    }`
+}
+
+// POST /server with an explicit source address. RemoteAddr must be set by hand:
+// http.NewRequest leaves it empty, and httptest.NewRequest would default it to
+// 192.0.2.1 (TEST-NET-1), which this feature blocks by design.
+func postServerFrom(remoteaddr string, body string) *httptest.ResponseRecorder {
+
+	w := httptest.NewRecorder()
+	w.Header().Add("Content-Type", "application/json")
+
+	req, _ := http.NewRequest("POST", "/server", bytes.NewBuffer([]byte(body)))
+	req.RemoteAddr = remoteaddr
+
+	ROUTER.ServeHTTP(w, req)
+
+	return w
+}
+
+func TestProductionRejectsPrivateServerurl(t *testing.T) {
+
+	PRODUCTION = true
+	defer func() { PRODUCTION = false }()
+
+	w := postServerFrom("8.8.8.8:1234",
+		privateAddressServer("http://192.168.68.61/x", "http://8bitBattleship.com/x.xex"))
+
+	if w.Code != 400 {
+		t.Errorf("Expecting HTTP 400, received HTTP %d", w.Code)
+	}
+
+	if !strings.Contains(w.Body.String(), "192.168.68.61") {
+		t.Errorf("Expecting the rejected host in the response, received %s", w.Body.String())
+	}
+}
+
+func TestProductionRejectsPrivateClientUrl(t *testing.T) {
+
+	PRODUCTION = true
+	defer func() { PRODUCTION = false }()
+
+	w := postServerFrom("8.8.8.8:1234",
+		privateAddressServer("http://8bitBattleship.com/x", "http://192.168.68.61/x.xex"))
+
+	if w.Code != 400 {
+		t.Errorf("Expecting HTTP 400, received HTTP %d", w.Code)
+	}
+
+	if !strings.Contains(w.Body.String(), "192.168.68.61") {
+		t.Errorf("Expecting the rejected host in the response, received %s", w.Body.String())
+	}
+}
+
+func TestProductionRejectsPrivateSource(t *testing.T) {
+
+	PRODUCTION = true
+	defer func() { PRODUCTION = false }()
+
+	w := postServerFrom("192.168.68.61:1234",
+		privateAddressServer("http://8bitBattleship.com/x", "http://8bitBattleship.com/x.xex"))
+
+	if errors := assertHTTPAnswerJSON(w, 403, `{"success":false,
+		"message":"Publishing is not permitted from a non-routable address",
+		"errors":["source address 192.168.68.61 is not publicly routable"]}`); errors != nil {
+		for _, err := range errors {
+			t.Errorf("POST /server %s", err)
+		}
+	}
+}
+
+// a publish that is public end to end must still work in production
+func TestProductionAcceptsPublicServer(t *testing.T) {
+
+	PRODUCTION = true
+	defer func() { PRODUCTION = false }()
+
+	w := postServerFrom("8.8.8.8:1234",
+		privateAddressServer("http://8bitBattleship.com/prodtest", "http://8bitBattleship.com/x.xex"))
+
+	if errors := assertHTTPAnswerJSON(w, 201, `{"message":"Server correctly updated","success":true}`); errors != nil {
+		for _, err := range errors {
+			t.Errorf("POST /server %s", err)
+		}
+	}
+}
+
+// outside production nothing changes: local addresses stay publishable so that
+// developers can keep testing against their own lan.
+func TestDevelopmentAcceptsPrivateAddresses(t *testing.T) {
+
+	if PRODUCTION {
+		t.Fatal("PRODUCTION leaked from an earlier test")
+	}
+
+	w := postServerFrom("192.168.68.61:1234",
+		privateAddressServer("http://192.168.68.61/devtest", "http://192.168.68.61/x.xex"))
+
+	if errors := assertHTTPAnswerJSON(w, 201, `{"message":"Server correctly updated","success":true}`); errors != nil {
+		for _, err := range errors {
+			t.Errorf("POST /server %s", err)
 		}
 	}
 }
