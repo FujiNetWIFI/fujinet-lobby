@@ -101,9 +101,16 @@
     CONST REC_PINGAGE     = 187  '   2  unused
     CONST REC_STRIDE      = 189
 
+    ' LIST_LAST_ROW is 9, not 10, because of the colour stack: the tan
+    ' selection bar needs a non-empty dark green run beneath it, so row 10
+    ' is a permanent blank spacer (see st_list.bas's lb_apply_stack). Costs
+    ' at most one room per page; lb_render_list already truncates num_rows
+    ' in place and lb_full is latched off the server's reply, so paging is
+    ' unaffected.
     CONST ENTRIES_PER_PAGE = 9
     CONST LIST_START_ROW   = 1
-    CONST LIST_LAST_ROW    = 10
+    CONST LIST_LAST_ROW    = 9
+    CONST LIST_SPACER_ROW  = 10
     CONST LEGEND_ROW       = 11
 
     CONST DEVICE_SLOT = 0
@@ -123,4 +130,5 @@
     CONST SC_PSTK       = $8A00 '   20  page-start offset stack, 10 x 2 LE
     CONST SC_EROW       = $8A20 '    9  per-record screen row it was drawn on
     CONST SC_ENTRY      = $8A30 '  128  selected room name, bounce-scroll source
-    ' $8AB0-$9BFF free
+    CONST SC_PREVGAME   = $8AB0 '   17  previous record's game, lb_count_pages
+    ' $8AC1-$9BFF free

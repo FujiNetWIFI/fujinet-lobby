@@ -30,7 +30,20 @@ scroll_draw: PROCEDURE
         s_c = 32
         IF sc_off + s_i < sc_len THEN s_c = PEEK(SC_ENTRY + sc_off + s_i) AND 255
         IF s_c < 32 OR s_c > 126 THEN s_c = 32
-        #BACKTAB(sc_row * SCREEN_COLS + sc_col + s_i) = (s_c - 32) * 8 + sc_color
+        #s_val = (s_c - 32) * 8 + sc_color
+        ' The cell at sc_col carries the colour stack's selection-bar advance
+        ' (st_list.bas's lb_bar_set), and this loop runs during active display,
+        ' not just in vblank. Re-arming bit 13 in a second pass after the loop
+        ' leaves it clear for a dozen cell writes, and any frame the STIC scans
+        ' inside that window renders the whole screen a stack position out --
+        ' green bar, tan list, green command row. That reads as violent
+        ' flashing while a long name pans. Folding the bit into the same word
+        ' keeps every write atomic, so the bit is never observably absent.
+        ' This module only ever draws the selected row, so the bit always
+        ' belongs here; the one call on a row being LEFT comes from
+        ' scroll_reset, and lb_move_up/lb_move_down clear it immediately after.
+        IF s_i = 0 THEN #s_val = #s_val + CS_ADVANCE
+        #BACKTAB(sc_row * SCREEN_COLS + sc_col + s_i) = #s_val
     NEXT s_i
 END
 

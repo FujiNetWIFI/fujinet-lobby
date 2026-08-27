@@ -14,6 +14,8 @@
     CONST COL_ERROR    = CS_RED
     CONST COL_VALUE    = CS_TAN
     CONST COL_CURSOR   = CS_GREEN
+    CONST COL_HEADER   = CS_YELLOW  ' game-group header rows, on dark green
+    CONST COL_SELECT   = CS_BLACK   ' selected room row, on the tan bar
 
     DIM s_row, s_col, s_i, s_c, s_len, s_max, s_col_color
     DIM #s_src, #s_val
