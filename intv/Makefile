@@ -4,7 +4,7 @@ LIBDIR    ?= $(HOME)/Workspace/IntyBASIC/intybasic/
 
 PRODUCT = lobby
 SOURCES = lobby.bas constants.bas fujinet.bas screen.bas scroll.bas \
-          input.bas st_name.bas st_list.bas st_boot.bas
+          input.bas st_name.bas st_list.bas st_qr.bas st_boot.bas
 
 .PHONY: all clean run
 all: $(PRODUCT).bin $(PRODUCT).rom

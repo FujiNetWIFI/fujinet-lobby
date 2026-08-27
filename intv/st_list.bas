@@ -4,7 +4,7 @@
 ' screenshot this was ported from), page with the keypad, and hand off to
 ' ST_BOOT on selection.
 '
-' Wire protocol (clients/src/main.c): N:<endpoint>?bin=1&platform=intv&
+' Wire protocol (clients/src/main.c): N:<endpoint>?bin=2&platform=intv&
 ' pagesize=N&offset=M, opened HTTP GET. Reply is a 3-byte header
 ' (server_count, 2 reserved) then server_count x 189-byte records
 ' (constants.bas's REC_* offsets). FN_RX is only 512 bytes, far smaller
@@ -29,7 +29,7 @@
 ' ---------------------------------------------------------------------------
 lit_n_https: DATA 78,58,104,116,116,112,115,58,47,47
 lit_host: DATA 108,111,98,98,121,46,102,117,106,105,110,101,116,46,111,110,108,105,110,101
-lit_path: DATA 47,118,105,101,119,63,98,105,110,61,49,38,112,108,97,116,102,111,114,109,61,105,110,116,118
+lit_path: DATA 47,118,105,101,119,63,98,105,110,61,50,38,112,108,97,116,102,111,114,109,61,105,110,116,118
 lit_pagesize: DATA 38,112,97,103,101,115,105,122,101,61
 lit_offset: DATA 38,111,102,102,115,101,116,61
 
@@ -40,7 +40,7 @@ lit_offset: DATA 38,111,102,102,115,101,116,61
     CONST LEN_OFFSET   = 8
 
 ' ---------------------------------------------------------------------------
-' compose_lobby_url: build "N:https://lobby.fujinet.online/view?bin=1&
+' compose_lobby_url: build "N:https://lobby.fujinet.online/view?bin=2&
 ' platform=intv&pagesize=<lb_qsize>&offset=<#lb_qoff>" into FN_TX. Both are
 ' set by the caller -- lb_fetch_page asks for one screenful, lb_fetch_total
 ' asks for everything and reads only the count byte.
@@ -228,7 +228,10 @@ do_list: PROCEDURE
     END IF
 
     IF in_btn <> 0 AND num_rows > 0 THEN
-        state = ST_BOOT
+        ' ST_QR shows the room's chat code, then sets ST_BOOT itself. It has to
+        ' come first: do_boot never returns on success -- boot_mount_with_progress
+        ' resets the console -- so there is no "after" to draw anything in.
+        state = ST_QR
         RETURN
     END IF
 
@@ -237,7 +240,7 @@ END
 
 ' ---------------------------------------------------------------------------
 ' lb_fetch_page: open the lobby URL, settle-poll, then read the page a
-' record at a time (one net_read per 189-byte record -- well under FN_RX's
+' record at a time (one net_read per 215-byte record -- well under FN_RX's
 ' 512-byte ceiling, so no cursor arithmetic across chunks is needed). A
 ' short read on any record means the reply was truncated; stop there and
 ' keep whatever full records already landed, exactly like the C client's
