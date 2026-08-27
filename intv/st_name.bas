@@ -55,6 +55,10 @@ lb_edit_name: PROCEDURE
         POKE (SC_EDIT + nm_i), PEEK(SC_NAME + nm_i) AND 255
     NEXT nm_i
 
+    ' grid_video before scr_clear, so no frame of the outgoing list screen is
+    ' reinterpreted under the grid's palette.
+    GOSUB grid_video
+
     GOSUB scr_clear
     PRINT AT screenpos(0,0) COLOR COL_NORMAL,"ENTER YOUR NAME"
     #ge_dst = SC_EDIT : g_max = 9
@@ -83,4 +87,12 @@ lb_edit_name: PROCEDURE
         POKE (SC_NAME + 3), 86  ' 'V'
         POKE (SC_NAME + 4), 0
     END IF
+
+    ' Put the list screen's palette back -- grid_video swapped in the grid's
+    ' own, and unlike fujinet-config this program has no main-loop video
+    ' arbiter to notice. Leaving the stale grid on screen through the appkey
+    ' write above is fine: both callers repaint from scratch afterwards, and
+    ' lb_render_list opens with scr_clear, which zeroes every word including
+    ' the two CS_ADVANCE cells grid_entry stamped.
+    GOSUB scr_video_list
 END

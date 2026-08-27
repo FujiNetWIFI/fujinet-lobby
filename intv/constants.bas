@@ -29,7 +29,36 @@
     CONST CS_GREEN      = $0005
     CONST CS_YELLOW     = $0006
     CONST CS_WHITE      = $0007
+    ' 8-15 are BACKGROUND ONLY: a GROM card's foreground is bits 0-2 plus bit 12,
+    ' and bit 12 doubles as the Colored Squares selector, so the STIC requires
+    ' foreground bit 3 to be 0 for GROM cards. Color stack REGISTERS take the full
+    ' 0-15 though, which is how CS_PURPLE reaches the screen -- input.bas's
+    ' grid_video only ever uses it as a register, never as a foreground.
+    CONST CS_PURPLE     = $000F
     CONST CS_ADVANCE    = $2000   ' Advance the color stack by one position.
+
+    ' -------------------------------------------------------------------
+    ' GRAM cards and MOB (sprite) register bits.
+    ' -------------------------------------------------------------------
+    ' GLYPH_BLOCK is the program's only GRAM card, and it is shared: input.bas
+    ' parks it behind the character grid's selected cell as an inverse-video MOB,
+    ' and st_boot.bas draws it straight into BACKTAB for the boot progress bar.
+    ' Its bitmap and its DEFINE live in screen.bas, but the CONSTs have to be
+    ' here: constants.bas is INCLUDEd first and input.bas fifth, and IntyBASIC
+    ' silently treats a not-yet-declared CONST as an unassigned variable reading
+    ' 0, with no diagnostic (fujinet-config/intv/csbar.bas:31-35 learned this the
+    ' hard way).
+    CONST GLYPH_BLOCK   = 0
+    CONST GRAM_SELECT   = $0800   ' bit 11: take the card from GRAM, not GROM
+
+    ' *** SPR_BEHIND is bit 13 of the ATTRIBUTE register and means PRIORITY. ***
+    ' The IntyBASIC manual (manual.txt:944) calls it "Change color stack", which
+    ' is the BACKTAB meaning copy-pasted into the SPRITE section by mistake. The
+    ' STIC's own documentation is unambiguous -- jzintv/doc/programming/
+    ' stic.txt:247, "PRIO: if set, the MOB appears behind background cards".
+    CONST SPR_VISIBLE   = $0200   ' X reg
+    CONST SPR_ZOOMY2    = $0100   ' Y reg: 1x card-pixel tall (MOBs are half-pixel by default)
+    CONST SPR_BEHIND    = $2000   ' A reg bit 13 = PRIO
 
     ' Disc directions (8-way, used for menu/grid navigation).
     CONST DISC_UP     = $0004
@@ -74,16 +103,30 @@
     ' Character-grid text entry layout (input.bas's grid_entry). All 95
     ' printable ASCII characters (32-126) fit in 6 rows x 16 columns.
     ' -------------------------------------------------------------------
+    ' Rows 0-2 sit on color stack p0 (blue), 3-10 on p1 (dark green), 11 on p2
+    ' (purple) -- grid_entry stamps the two advance cells, grid_video programs
+    ' the palette. Row 3 is blank padding so the dark green run starts cleanly
+    ' above the charset, and row 10 is a blank spacer above the action row.
     CONST GRID_VALUE_ROW  = 1
-    CONST GRID_ROW0       = 3
+    CONST GRID_PANEL_ROW  = 3    ' dark green starts here: a blank row of padding
+    CONST GRID_ROW0       = 4
     CONST GRID_COL0       = 2
     CONST GRID_ROWS       = 6
     CONST GRID_COLS       = 16
-    CONST GRID_ACTION_ROW = 10
+    CONST GRID_ACTION_ROW = 11
     CONST GRID_ACT_COL0   = 2    ' SPC
     CONST GRID_ACT_COL1   = 7    ' DEL
     CONST GRID_ACT_COL2   = 12   ' OK
     CONST GRID_ACT_COL3   = 17   ' ESC
+
+    ' Pixel offset from background card (0,0) to MOB coordinates, for the
+    ' inverse-video cursor. Measured against the emulator by pinning the cursor
+    ' on a known cell and reading back where the block landed: both axes are
+    ' offset by 8, i.e. MOB (8,8) is the top-left card. Don't infer this from
+    ' the IntyBASIC manual's coordinate ranges (X 0-168, Y 0-95) -- they imply
+    ' an asymmetry that isn't there.
+    CONST GRID_MOB_X0     = 8
+    CONST GRID_MOB_Y0     = 8
 
     ' -------------------------------------------------------------------
     ' Wire record layout (server/model.go's GameServerMin.appendAsBinary),

@@ -210,12 +210,19 @@ boot_mount_with_progress: PROCEDURE
 END
 
 ' boot_draw_progress: 20-cell bar on row 5, percentage on row 6.
+'
+' Filled cells are the solid GRAM block (constants.bas's GLYPH_BLOCK, uploaded
+' at lb_boot_start and shared with the character grid's cursor) rather than the
+' '#' this used to draw, so the bar reads as one unbroken run with no gaps
+' between cells. A color stack GRAM cell is card*8 + GRAM_SELECT + foreground.
 boot_draw_progress: PROCEDURE
     s_row = 5
     FOR s_i = 0 TO SCREEN_COLS - 1
-        s_c = 32
-        IF s_i < (bt_pct * SCREEN_COLS) / 100 THEN s_c = 35   ' '#'
-        #BACKTAB(s_row * SCREEN_COLS + s_i) = (s_c - 32) * 8 + COL_HILIGHT
+        IF s_i < (bt_pct * SCREEN_COLS) / 100 THEN
+            #BACKTAB(s_row * SCREEN_COLS + s_i) = GLYPH_BLOCK * 8 + GRAM_SELECT + COL_HILIGHT
+        ELSE
+            #BACKTAB(s_row * SCREEN_COLS + s_i) = CS_BLACK   ' card 0 = blank
+        END IF
     NEXT s_i
 
     s_row = 6 : GOSUB scr_row_clear

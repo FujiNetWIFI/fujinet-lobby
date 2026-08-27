@@ -31,20 +31,12 @@
     INCLUDE "st_boot.bas"
 
 lb_boot_start:
-    ' Color stack backgrounds, laid out for the list screen (st_list.bas's
-    ' lb_apply_stack explains the run-by-run reasoning). Position 0 is BLUE
-    ' on purpose: every other screen starts with scr_clear, which zeroes
-    ' every BACKTAB word including the advance bit, so with no advances
-    ' anywhere they sit entirely on p0 and look exactly as they did before
-    ' this program had any colour at all.
-    '
-    ' The WAIT is load-bearing. MODE packs its four colours into IntyBASIC's
-    ' _color variable and flags _mode_select; the ISR consumes that on the
-    ' next frame and resets _color to 7. Any PRINT ... COLOR in between
-    ' would overwrite the packed word and bring the stack up as garbage.
-    MODE 0, CS_BLUE, CS_DARKGREEN, CS_TAN, CS_DARKGREEN
-    BORDER CS_BLUE
-    WAIT
+    ' Color stack backgrounds for the list screen, plus the solid block card
+    ' the grid cursor and the boot progress bar both draw with. Both live in
+    ' screen.bas; scr_video_list is shared with lb_edit_name's palette restore,
+    ' and scr_define_glyphs has to run before anything draws with GRAM_SELECT.
+    GOSUB scr_video_list
+    GOSUB scr_define_glyphs
 
     GOSUB scr_clear
     GOSUB fn_wait_mailbox

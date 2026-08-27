@@ -79,3 +79,58 @@ scr_recolor: PROCEDURE
         #BACKTAB(s_row * SCREEN_COLS + s_col + s_i) = #s_val
     NEXT s_i
 END
+
+' ---------------------------------------------------------------------------
+' scr_video_list: program the color stack for the list screen (st_list.bas's
+' lb_apply_stack explains the run-by-run reasoning). Position 0 is BLUE on
+' purpose: every other screen starts with scr_clear, which zeroes every BACKTAB
+' word including the advance bit, so with no advances anywhere they sit
+' entirely on p0.
+'
+' Shared by two callers rather than inlined, so they can't drift: lobby.bas at
+' boot, and st_name.bas's lb_edit_name restoring this palette after
+' input.bas's grid_video swapped in the character grid's own.
+'
+' The WAIT is load-bearing. MODE packs its four colours into IntyBASIC's
+' _color variable and flags _mode_select; the ISR consumes that on the next
+' frame and resets _color to 7. Any PRINT ... COLOR in between would overwrite
+' the packed word and bring the stack up as garbage.
+' ---------------------------------------------------------------------------
+scr_video_list: PROCEDURE
+    MODE 0, CS_BLUE, CS_DARKGREEN, CS_TAN, CS_DARKGREEN
+    BORDER CS_BLUE
+    WAIT
+END
+
+' ---------------------------------------------------------------------------
+' The program's only GRAM card. Intellivision GRAM is 8x8, one byte per row,
+' MSB leftmost.
+'
+' Every pixel is "on", which is what makes it useful twice over: input.bas
+' parks it behind the character grid's selected cell as a MOB, where it fills
+' the whole card except where the glyph's own foreground pixels win (real
+' inverse video), and st_boot.bas draws it into BACKTAB directly so the
+' progress bar reads as one unbroken run with no gaps between cells.
+'
+' Safe to sit here as raw data: lobby.bas's GOTO lb_boot_start jumps clear of
+' every INCLUDE, so straight-line execution never falls into it.
+' ---------------------------------------------------------------------------
+lit_glyphs:
+    BITMAP "########"
+    BITMAP "########"
+    BITMAP "########"
+    BITMAP "########"
+    BITMAP "########"
+    BITMAP "########"
+    BITMAP "########"
+    BITMAP "########"
+
+' ---------------------------------------------------------------------------
+' scr_define_glyphs: upload the card to GRAM. Called once from lb_boot_start
+' before anything draws -- until the DEFINE lands, GRAM holds whatever the
+' EXEC left there. DEFINE takes effect on the NEXT frame, hence the WAIT.
+' ---------------------------------------------------------------------------
+scr_define_glyphs: PROCEDURE
+    DEFINE GLYPH_BLOCK, 1, lit_glyphs
+    WAIT
+END
