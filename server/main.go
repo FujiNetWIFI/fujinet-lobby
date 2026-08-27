@@ -51,11 +51,13 @@ var SERVERS_HTML []byte
 
 func main() {
 
-	var srvaddr string
+	var srvaddr, chatsrv, chatkey string
 	var evtaddrs, trustedproxies ArrayOfParams
 	var help, version bool
 
 	flag.StringVar(&srvaddr, "srvaddr", ":8080", "<address:port> for http server")
+	flag.StringVar(&chatsrv, "chatsrv", "", "<url> of the game chat service, e.g. https://q.tnfs.io (empty disables chat rooms)")
+	flag.StringVar(&chatkey, "chatkey", os.Getenv("LOBBY_CHATKEY"), "shared secret for the chat service api (or set LOBBY_CHATKEY)")
 	flag.Var(&evtaddrs, "evtaddr", "<http> for event server webhook (multiple values accepted)")
 	flag.Var(&trustedproxies, "trustedproxy", "<ip|cidr> of a reverse proxy allowed to set X-Forwarded-For (multiple values accepted)")
 
@@ -82,6 +84,7 @@ func main() {
 	init_db()
 	init_html(srvaddr)
 	init_webhook(evtaddrs)
+	init_chat(chatsrv, chatkey)
 
 	router := gin.Default()
 
@@ -102,6 +105,33 @@ func main() {
 /*
  * Subsystems start here.
  */
+
+// init_chat configures the link to the game chat service. Chat rooms are opt-in
+// per deployment: with no -chatsrv the lobby behaves exactly as before and the
+// chat_url field goes out empty.
+func init_chat(chatsrv string, chatkey string) {
+
+	if chatsrv == "" {
+		INFO.Println("No chat service configured, chat room urls will be empty")
+		return
+	}
+
+	parsed, err := url.Parse(chatsrv)
+	if err != nil || parsed.Host == "" {
+		WARN.Printf("%s is not a valid url for the chat service. Chat rooms are disabled", chatsrv)
+		return
+	}
+
+	if chatkey == "" {
+		WARN.Printf("-chatsrv is set but no -chatkey was given; the chat api rejects unauthenticated calls. Chat rooms are disabled")
+		return
+	}
+
+	CHATSRV_URL = strings.TrimRight(chatsrv, "/")
+	CHATSRV_APIKEY = chatkey
+
+	INFO.Printf("%s will be used as the game chat service", CHATSRV_URL)
+}
 
 func init_logger() {
 

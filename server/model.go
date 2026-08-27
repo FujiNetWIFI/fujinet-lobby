@@ -19,6 +19,10 @@ type GameServer struct {
 	Maxplayers int          `json:"maxplayers" binding:"required,number"`
 	Curplayers int          `json:"curplayers" binding:"number"` // golang validator has issues with 0 values
 	Clients    []GameClient `json:"clients" binding:"required"`
+
+	// Assigned by the lobby from the chat service, never accepted from a game
+	// server. UpsertServer discards whatever a publisher puts here.
+	ChatUrl string `json:"chaturl,omitempty"`
 }
 
 type GameServerSlice []GameServer
@@ -45,6 +49,7 @@ type GameServerClient struct {
 	Maxplayers      int
 	Curplayers      int
 	Lastping        time.Time
+	Chat_url        string
 	Client_platform string
 	Client_url      string
 }
@@ -63,6 +68,7 @@ type GameServerMin struct {
 	Maxplayers int    `json:"m"`
 	Curplayers int    `json:"p"`
 	Pingage    int    `json:"a"`
+	ChatUrl    string `json:"h,omitempty"`
 }
 
 // minimize file to send to 8 bit client filtering by platform
@@ -79,6 +85,7 @@ func (s GameServerClient) Minimize() (minimised GameServerMin) {
 		Maxplayers: s.Maxplayers,
 		Curplayers: s.Curplayers,
 		Pingage:    int(time.Since(s.Lastping).Seconds()),
+		ChatUrl:    s.Chat_url,
 	}
 }
 
@@ -93,6 +100,7 @@ func (s GameServerClient) toGameServer() (gameserver GameServer) {
 		Status:     s.Status,
 		Maxplayers: s.Maxplayers,
 		Curplayers: s.Curplayers,
+		ChatUrl:    s.Chat_url,
 		Clients:    []GameClient{{Platform: s.Client_platform, Url: s.Client_url}},
 	}
 }
@@ -125,8 +133,28 @@ func (s GameServerClientSlice) toGameServerSlice() (gameservers GameServerSlice)
 	return gameservers
 }
 
+// Binary record formats served by /view?bin=N.
+//
+// The record is a fixed-stride struct read straight into memory by 8-bit
+// clients, so the layout is the protocol. Adding a field changes the stride and
+// breaks every deployed client that does not know about it -- hence a new
+// format number rather than an edit to the old one. Format 1 must stay
+// byte-for-byte identical forever.
+const (
+	BinFormatV1 = 1 // 189 bytes
+	BinFormatV2 = 2 // 215 bytes: adds chat_url
+
+	// chatUrlFieldLen is sized to the largest URL a QR version 1 symbol can
+	// hold (25 characters) plus a NUL, not to today's shorter URL, so the chat
+	// host can change without minting another wire format.
+	chatUrlFieldLen = 26
+
+	BinRecordLenV1 = 189
+	BinRecordLenV2 = BinRecordLenV1 + chatUrlFieldLen
+)
+
 // Return minimized result to binary format to optimize 8-bit consumption
-func (s GameServerMin) appendAsBinary(buf []byte) []byte {
+func (s GameServerMin) appendAsBinary(buf []byte, format int) []byte {
 	buf = append(buf, byte(s.AppKey))
 	buf = appendFixedLengthString(buf, s.Game, 16)
 	buf = appendFixedLengthString(buf, s.Server, 32)
@@ -142,6 +170,11 @@ func (s GameServerMin) appendAsBinary(buf []byte) []byte {
 	// If we use it we would need to take Endian into account
 	//buf = binary.LittleEndian.AppendUint16(buf, uint16(s.Pingage))
 	buf = append(buf, byte(0), byte(0))
+
+	// Everything above is format 1 and must never change.
+	if format >= BinFormatV2 {
+		buf = appendFixedLengthString(buf, s.ChatUrl, chatUrlFieldLen-1)
+	}
 
 	return buf
 }

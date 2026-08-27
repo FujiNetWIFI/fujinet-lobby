@@ -165,6 +165,9 @@
           <tr><td>page</td>
             <td>Part of pagination. Page number, starts with 1</td>
             <td>optional<br/>integer</td></tr>
+          <tr><td>bin</td>
+            <td>Return fixed-width binary records instead of json. See <a href="#binary-format">binary format</a>.</td>
+            <td>optional<br/>1 = 189 byte records<br/>2 = 215 byte records (adds <code>h</code>)<br/>anything else = json</td></tr>
         </tbody>
       </table>
       
@@ -229,8 +232,41 @@
               <tr><td>a</td>
                 <td>Last time the server data was updated in seconds</td>
                 <td>Always included<br/>integer a ≥ 0 </td></tr>
+              <tr><td>h</td>
+                <td>Chat room url for this server, for the client to render as a QR code players can scan. Assigned by the lobby, never by the game server.</td>
+                <td>omitted when empty<br/>uppercase<br/>25 chars max</td></tr>
             </tbody>
           </table>
+
+          <h4 id="binary-format">Binary format</h4>
+          <p>With <code>bin=1</code> or <code>bin=2</code> the same data is returned as
+          <code>application/octet-stream</code>: a three byte header
+          (record count, then two reserved bytes) followed by that many fixed-width records.
+          8-bit clients read the records straight into a struct, so the layout <em>is</em> the
+          protocol and the stride must match exactly.</p>
+
+          <table>
+            <thead><tr><th>Offset</th><th>Size</th><th>Field</th></tr></thead>
+            <tbody>
+              <tr><td>0</td><td>1</td><td>appkey (<code>t</code>)</td></tr>
+              <tr><td>1</td><td>17</td><td>game (<code>g</code>), NUL padded</td></tr>
+              <tr><td>18</td><td>33</td><td>server (<code>s</code>), NUL padded</td></tr>
+              <tr><td>51</td><td>65</td><td>serverurl (<code>u</code>), NUL padded</td></tr>
+              <tr><td>116</td><td>65</td><td>client url (<code>c</code>), NUL padded</td></tr>
+              <tr><td>181</td><td>3</td><td>region (<code>r</code>), NUL padded</td></tr>
+              <tr><td>184</td><td>1</td><td>online (<code>o</code>)</td></tr>
+              <tr><td>185</td><td>1</td><td>curplayers (<code>p</code>)</td></tr>
+              <tr><td>186</td><td>1</td><td>maxplayers (<code>m</code>)</td></tr>
+              <tr><td>187</td><td>2</td><td>pingage, always zero</td></tr>
+              <tr><td colspan="3"><em>end of <code>bin=1</code>, total 189 bytes</em></td></tr>
+              <tr><td>189</td><td>26</td><td>chat url (<code>h</code>), NUL padded</td></tr>
+              <tr><td colspan="3"><em>end of <code>bin=2</code>, total 215 bytes</em></td></tr>
+            </tbody>
+          </table>
+
+          <p><code>bin=1</code> is frozen and will not change: existing clients read it as a
+          fixed stride, so a new field there would silently shift every following record
+          rather than fail. New fields get a new format number instead.</p>
 
       <p> For errors, see $$srvaddr$$view may return the following errors: </p>
 
