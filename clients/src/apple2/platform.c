@@ -1,10 +1,13 @@
 #ifdef __APPLE2__
 
 #include <stdint.h>
+#include <string.h>
 #include <apple2.h>
 #include <joystick.h>
 #include <peekpoke.h>
 #include <conio.h>
+
+#include "qr.h"
 
 static uint8_t installedDriver = 0, canReadJoystick=0;
 
@@ -93,6 +96,94 @@ void reboot(void)
 
     asm("JMP $0100");
   }
+}
+
+/*
+ * QR rendering: lo-res graphics, mixed mode.
+ *
+ * Text mode is no good here. There is no way to set a background colour, so a
+ * symbol drawn with inverse spaces would sit on a black page with no quiet
+ * zone; and 21 modules plus a 4-module margin is 29 rows against a 24-row
+ * screen. Lo-res gives 40x40 blocks above four text lines, which fits 29 with
+ * room to spare on every side.
+ *
+ * Lo-res reuses the text page rather than needing its own buffer, which matters
+ * because LobbyResponse is already several KB and the hi-res page at $2000
+ * would collide with the program image.
+ *
+ * Each byte holds two vertically stacked blocks: the low nibble is the even
+ * row, the high nibble the odd one. Blocks are 7 pixels by 4 scanlines, so
+ * modules come out stretched roughly 1.6:1 horizontally -- recoverable by any
+ * decoder, and a guaranteed quiet zone is the better trade.
+ */
+
+#define QR_LORES_COLS   40
+#define QR_LORES_ROWS   40      /* mixed mode: 40 block rows, then 4 text rows */
+#define QR_ORIGIN_X     ((QR_LORES_COLS - QR_MODULES) / 2)   /* 9 */
+#define QR_ORIGIN_Y     ((QR_LORES_ROWS - QR_MODULES) / 2)   /* 9 */
+
+#define QR_LORES_WHITE  15
+#define QR_LORES_BLACK  0
+
+/* Soft switches. Read through a volatile pointer: cc65's PEEK() is a plain
+   dereference, so the compiler discards it as a statement with no effect and
+   the mode never changes. */
+#define QR_SOFT_SWITCH(addr) (*(volatile uint8_t *) (addr))
+
+#define QR_SW_GRAPHICS  0xC050
+#define QR_SW_TEXT      0xC051
+#define QR_SW_MIXED     0xC053
+#define QR_SW_PAGE1     0xC054
+#define QR_SW_LORES     0xC056
+
+/* Address of the byte holding lo-res block (x, y). Two block rows share a
+   byte, on the text page's interleaved row bases. */
+static uint8_t *qr_lores_addr(uint8_t x, uint8_t y) {
+  uint8_t row = y >> 1;
+  return (uint8_t *) (0x0400 + ((row & 7) << 7) + ((row >> 3) * 40) + x);
+}
+
+static void qr_lores_set(uint8_t x, uint8_t y, uint8_t colour) {
+  uint8_t *p = qr_lores_addr(x, y);
+
+  if (y & 1)
+    *p = (*p & 0x0F) | (colour << 4);
+  else
+    *p = (*p & 0xF0) | colour;
+}
+
+void qr_draw() {
+  uint8_t x, y;
+
+  clrscr();
+
+  QR_SOFT_SWITCH(QR_SW_GRAPHICS);
+  QR_SOFT_SWITCH(QR_SW_MIXED);
+  QR_SOFT_SWITCH(QR_SW_LORES);
+  QR_SOFT_SWITCH(QR_SW_PAGE1);
+
+  for (y = 0; y < QR_LORES_ROWS; y++)
+    for (x = 0; x < QR_LORES_COLS; x++)
+      qr_lores_set(x, y, QR_LORES_WHITE);
+
+  for (y = 0; y < QR_MODULES; y++)
+    for (x = 0; x < QR_MODULES; x++)
+      if (qr_get(x, y))
+        qr_lores_set(QR_ORIGIN_X + x, QR_ORIGIN_Y + y, QR_LORES_BLACK);
+
+  /* The four mixed-mode text rows are 21 and 22 in text coordinates; the
+     symbol ends 10 block rows above them, well clear of the quiet zone. */
+  gotoxy(9, 22);
+  cputs("SCAN TO CHAT - ANY KEY");
+}
+
+void qr_restore() {
+  QR_SOFT_SWITCH(QR_SW_TEXT);
+  clrscr();
+}
+
+char qr_wait_key() {
+  return cgetc();
 }
 
 #endif /* __APPLE2__ */

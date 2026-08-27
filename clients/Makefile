@@ -29,6 +29,11 @@ CFLAGS = -DBUILD_$(PLATFORM_UC)
 # - a URL to a git repo
 # - empty which will use whatever is the latest
 # - undefined, no fujinet-lib will be used
+#
+# The QR code screen needs fuji_qrcode_v1(), added in fujinet-lib after 4.11.2
+# (FujiNetWIFI/fujinet-lib#79). Bump this to that release before merging; until
+# then build against a checkout with
+#   make <platform> FUJINET_LIB=/path/to/fujinet-lib
 FUJINET_LIB = 4.10.0
 
 # Define extra dirs ("combos") that expand with a platform.

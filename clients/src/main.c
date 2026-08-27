@@ -19,6 +19,7 @@
 
 #include "platform.h"
 #include "io.h"
+#include "qr.h"
 
 #define CREATOR_ID 0x0001 /* FUJINET  */
 #define APP_ID     0x01   /* LOBBY    */
@@ -131,7 +132,7 @@ uint8_t screen_height;
 #ifdef __WATCOMC__
 #pragma pack(push, 1)
 #endif
-typedef struct { // 189 bytes
+typedef struct { // 215 bytes, /view?bin=2
   uint8_t game_type;
   char game[17];
   char server[33];
@@ -142,6 +143,11 @@ typedef struct { // 189 bytes
   uint8_t players;
   uint8_t max_players;
   uint16_t ping_age;  // Ignored in client. Also, would need to support different endians in server for binary transfer mode
+  // Everything above is the bin=1 record and its layout is frozen. bin=2
+  // appends this: the room's web chat url, which mount() draws as a QR code
+  // for players to scan. Empty when the lobby has no chat service configured.
+  // Sized to the 25 characters a QR version 1 symbol holds, plus a terminator.
+  char chat_url[26];
 } ServerDetails;
 #ifdef __WATCOMC__
 #pragma pack(pop)
@@ -311,7 +317,7 @@ void refresh_servers(bool clearScreen) {
     cputsxy(0,BOTTOM_PANEL_Y+1,"Retrieving Servers..");
 
     strcpy(buf, qa_mode ? LOBBY_QA_ENDPOINT : LOBBY_ENDPOINT);
-    strcat(buf, "?bin=1&platform=" PLATFORM "&pagesize=");
+    strcat(buf, "?bin=2&platform=" PLATFORM "&pagesize=");
     itoa(page_size, buf+strlen(buf), 10);
     strcat(buf, "&offset=");
     itoa(offset, buf+strlen(buf), 10);
@@ -474,7 +480,13 @@ void mount() {
 
   // Set the server url in this game type's app key:
   write_appkey(CREATOR_ID,APP_ID,lobby.servers[selected_server].game_type, strlen(lobby.servers[selected_server].url), lobby.servers[selected_server].url);  
-  
+
+  // Offer the room's chat as a QR code before handing the machine to the game.
+  // Deliberately after the appkey write, so the code is only shown for a room
+  // that actually mounted, and silent if there is no chat url or the FujiNet
+  // cannot encode it -- a missing QR must never stop a game booting.
+  qr_show(lobby.servers[selected_server].chat_url);
+
   // Reboot / run the game
   reboot();
 
