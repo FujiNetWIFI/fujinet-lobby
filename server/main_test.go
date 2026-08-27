@@ -20,6 +20,7 @@ var ROUTER = setupRouter()
 func TestMain(m *testing.M) {
 
 	DATABASE = &lobbyDB{DB: sqlx.MustConnect("sqlite3", "db/lobby.sqlite3?_foreign_keys=on")}
+
 	DATABASE.Exec("DELETE FROM GameServer")
 	DB = NewCustomLogger("db", "\u001b[36mDB: \u001B[0m", log.LstdFlags)
 	DB.SetActive(false) // we don't want the DB logger to pollute the test
@@ -34,6 +35,13 @@ func TestMain(m *testing.M) {
 	WARN.SetActive(false)
 	ERROR = NewCustomLogger("error", "ERROR: ", log.LstdFlags)
 	ERROR.SetActive(false)
+
+	// Run the same additive migrations init_db() applies at startup. Has to
+	// come after the loggers, which migrate_db() writes through. The local
+	// db/lobby.sqlite3 is whatever a previous `make install-db` left behind, so
+	// this doubles as coverage that the migration works against a database
+	// built from an older schema.
+	migrate_db()
 
 	os.Exit(m.Run())
 }

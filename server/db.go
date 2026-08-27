@@ -62,4 +62,51 @@ func init_db() {
 	if err != nil {
 		DB.Fatalf("Unable to set PRAGMA correctly (%s)", err)
 	}
+
+	migrate_db()
+}
+
+// migrate_db brings an existing database up to the current schema.
+//
+// There is no migration framework here: lobby_schema.sql builds a fresh
+// database and `make install-db` drops whatever was there. That is fine for a
+// new deployment and useless for a running one, so additive changes are applied
+// here instead, idempotently, at every startup.
+func migrate_db() {
+
+	// SQLite has no "ADD COLUMN IF NOT EXISTS", so ask before telling.
+	var columns []struct {
+		Name string `db:"name"`
+	}
+
+	err := DATABASE.Select(&columns, `SELECT name FROM pragma_table_info('GameServer')`)
+	if err != nil {
+		DB.Fatalf("Unable to inspect the GameServer schema (%s)", err)
+	}
+
+	for _, column := range columns {
+		if column.Name == "chat_url" {
+			return
+		}
+	}
+
+	_, err = DATABASE.Exec(`ALTER TABLE GameServer ADD COLUMN chat_url TEXT NOT NULL DEFAULT ''`)
+	if err != nil {
+		DB.Fatalf("Unable to add the chat_url column (%s)", err)
+	}
+
+	// The GameServerClients view selects GameServer.*, which SQLite expands
+	// when the view is used rather than when it was created -- but only after
+	// the schema cache is reloaded. Recreate it so the new column is visible to
+	// this process immediately.
+	_, err = DATABASE.Exec(`
+		DROP VIEW IF EXISTS GameServerClients;
+		CREATE VIEW GameServerClients AS
+			SELECT GameServer.*, Clients.client_platform as client_platform, Clients.client_url as client_url
+			FROM GameServer JOIN Clients ON GameServer.Serverurl = Clients.Serverurl;`)
+	if err != nil {
+		DB.Fatalf("Unable to rebuild the GameServerClients view (%s)", err)
+	}
+
+	DB.Println("Migrated: added GameServer.chat_url")
 }

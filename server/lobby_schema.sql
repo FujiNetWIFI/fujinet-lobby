@@ -31,7 +31,11 @@ CREATE TABLE GameServer (
 	status     TEXT NOT NULL, 
 	maxplayers INT NOT NULL,
 	curplayers INT NOT NULL, 
-    lastping datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+    lastping datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Chat room URL for this server, assigned by the chat service and handed to
+    -- 8-bit clients so they can render it as a QR code. Empty when no chat
+    -- service is configured, or when it could not be reached.
+    chat_url TEXT NOT NULL DEFAULT ''
 );
 CREATE UNIQUE INDEX idx_GameServer_Serverurl ON GameServer (Serverurl ASC);
 

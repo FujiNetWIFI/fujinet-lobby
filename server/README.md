@@ -176,3 +176,40 @@ JOIN Clients ON GameServer.Serverurl = Clients.Serverurl;
 ### Relationships
 
 - The `Clients` table has a foreign key relationship to `GameServer` with CASCADE DELETE, meaning when a server is deleted, all associated client records are automatically removed.
+
+## Chat rooms
+
+Each game server can have a companion web chat room, served by
+[fujinet-game-system-chat](https://github.com/tschak909/fujinet-game-system-chat): text
+chat plus WebRTC voice and video. The lobby stores the room URL and hands it to 8-bit
+clients, which render it as a QR code for players to scan.
+
+Enable it by pointing the lobby at the chat service:
+
+```sh
+./lobbyPersist -srvaddr :8080 \
+    -chatsrv https://q.tnfs.io \
+    -chatkey "$LOBBY_CHATKEY"        # or set LOBBY_CHATKEY in the environment
+```
+
+With no `-chatsrv` the lobby behaves exactly as before and the `h` field goes out empty.
+
+Some properties worth knowing:
+
+- **The lobby assigns the URL; game servers cannot.** Anyone can POST to `/server`, so a
+  self-declared `chaturl` would let a publisher put an arbitrary link in front of players.
+  Whatever a publisher sends in that field is discarded.
+- **A chat outage never blocks a registration.** `ChatRoomUpsert` returns an empty string
+  on any failure, and the upsert then keeps whatever URL was already stored — the upsert is
+  a DELETE followed by an INSERT, so without that the URL of every live server would be
+  blanked on its next ping.
+- **The URL is capped at 25 characters.** It has to fit a QR version 1 symbol, which is the
+  largest an Intellivision can draw. A longer URL from the chat service is rejected rather
+  than truncated, because a truncated URL would still scan — to the wrong address.
+- Registrations refresh the room's lifetime, and `DELETE /server` releases it.
+
+### Database migration
+
+`chat_url` is added to `GameServer` automatically at startup if it is missing, so an
+existing `db/lobby.sqlite3` is upgraded in place. `make install-db` still rebuilds from
+`lobby_schema.sql` and destroys existing data — do not run it against a live database.

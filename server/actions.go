@@ -43,7 +43,7 @@ func ShowServersMinimised(c *gin.Context) {
 		ServerMinSlice = append(ServerMinSlice, server.Minimize())
 	}
 
-	if form.Bin == 1 {
+	if form.Bin > 0 {
 		data := SerializeToBinaryFormat(c, ServerMinSlice, form)
 		c.Data(http.StatusOK, "application/octet-stream", data)
 	} else {
@@ -61,7 +61,7 @@ func SerializeToBinaryFormat(c *gin.Context, serverList []GameServerMin, form Sh
 	buf = append(buf, byte(0))
 
 	for _, server := range serverList {
-		buf = server.appendAsBinary(buf)
+		buf = server.appendAsBinary(buf, form.Bin)
 	}
 
 	return buf
@@ -72,7 +72,7 @@ type ShowServersMinimisedFormData struct {
 	Appkey   int    // -1 if none
 	Pagesize int    // number of entries to return.
 	Offset   int    // offset of the entries
-	Bin      int    // 1 if client expects binary response instead of json
+	Bin      int    // 0 for json, otherwise the binary record format version
 }
 
 func parseShowServersMinimisedForm(c *gin.Context) (output ShowServersMinimisedFormData, err error) {
@@ -111,9 +111,25 @@ func parseShowServersMinimisedForm(c *gin.Context) (output ShowServersMinimisedF
 		Appkey:   appkey,
 		Pagesize: pagesize,
 		Offset:   offset,
-		Bin:      IfElse(c.Query("bin") == "1", 1, 0),
+		Bin:      parseBinFormat(c.Query("bin")),
 	}, nil
 
+}
+
+// parseBinFormat maps the ?bin= query value to a binary record format version.
+//
+// Anything unrecognised falls back to JSON rather than guessing: serving a
+// client a stride it does not expect would have it read garbage rather than
+// fail, since the records are a fixed-size struct read straight into memory.
+func parseBinFormat(v string) int {
+	switch v {
+	case "1":
+		return BinFormatV1
+	case "2":
+		return BinFormatV2
+	default:
+		return 0
+	}
 }
 
 // show html view of lobby
@@ -273,7 +289,15 @@ func UpsertServer(c *gin.Context) {
 		return
 	}
 
-	err = txGameServerUpsert(server)
+	// Never accepted from a publisher; the lobby assigns it.
+	server.ChatUrl = ""
+
+	// A chat failure must not stop a game server registering, so this returns
+	// empty rather than an error and the transaction keeps any URL already
+	// stored for this server.
+	chatUrl := ChatRoomUpsert(server)
+
+	err = txGameServerUpsert(server, chatUrl)
 
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError,
@@ -345,6 +369,10 @@ func DeleteServer(c *gin.Context) {
 	if len(EVTSERVER_WEBHOOKS) > 0 {
 		go CallEventWebHook("DELETE", server, 2*time.Second)
 	}
+
+	// Off the response path: the room expires on its own if this never lands,
+	// so there is nothing worth making the caller wait for.
+	go ChatRoomDelete(server.Serverurl)
 
 	c.JSON(http.StatusNoContent, gin.H{"success": true,
 		"message": "Server correctly deleted"})

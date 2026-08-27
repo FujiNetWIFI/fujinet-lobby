@@ -38,8 +38,14 @@ func txGameServerGetBy(platform string, appkey int, pagesize int, offset int) (o
 	return output, nil
 }
 
-// Upsert new GameServer with client input
-func txGameServerUpsert(gs GameServer) (err error) {
+// Upsert new GameServer with client input.
+//
+// chatUrl is the room URL from the chat service, or empty if the service is
+// disabled or did not answer. Empty means "keep whatever is already stored":
+// this is a DELETE followed by an INSERT rather than a real upsert, so without
+// carrying the old value forward a chat outage would blank the URL on every
+// existing server the moment it re-pinged.
+func txGameServerUpsert(gs GameServer, chatUrl string) (err error) {
 
 	tx, err := DATABASE.Begin()
 
@@ -48,6 +54,15 @@ func txGameServerUpsert(gs GameServer) (err error) {
 		tx.Rollback()
 
 		return err
+	}
+
+	if chatUrl == "" {
+		queryChat := `--sql
+			SELECT chat_url FROM GameServer WHERE Serverurl = $1 -- preserve across the delete/insert below
+		`
+		// A missing row leaves chatUrl empty, which is what we want for a
+		// server registering for the first time.
+		_ = tx.QueryRow(queryChat, gs.Serverurl).Scan(&chatUrl)
 	}
 
 	queryDelete := `--sql
@@ -64,11 +79,11 @@ func txGameServerUpsert(gs GameServer) (err error) {
 	}
 
 	queryInsert := `--sql
-		INSERT INTO GameServer (Serverurl, Game, Appkey, Server, Region, Status, Maxplayers, Curplayers)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) -- insert main server
+		INSERT INTO GameServer (Serverurl, Game, Appkey, Server, Region, Status, Maxplayers, Curplayers, chat_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) -- insert main server
 	`
 
-	_, err = tx.Exec(queryInsert, gs.Serverurl, gs.Game, gs.Appkey, gs.Server, gs.Region, gs.Status, gs.Maxplayers, gs.Curplayers)
+	_, err = tx.Exec(queryInsert, gs.Serverurl, gs.Game, gs.Appkey, gs.Server, gs.Region, gs.Status, gs.Maxplayers, gs.Curplayers, chatUrl)
 
 	if err != nil {
 		DB.Printf("%s error insert GameServer: (%s)", extendedFnName(), err)
