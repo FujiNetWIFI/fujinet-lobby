@@ -56,6 +56,11 @@ include mekkogx/toplevel-rules.mk
 AUTOEXEC_COCO = src/coco/autoexec.bas
 AUTOEXEC_MSDOS = src/msdos/AUTOEXEC.BAT
 
+# Use the Adam system font rather than the z88dk default. The pre-mekkogx
+# src/adam/Makefile set this pragma; it was dropped in the reorg, which left
+# _font_8x8_coleco_adam_system.asm compiled but never installed as the CRT font.
+LDFLAGS_EXTRA_ADAM = -pragma-redirect:CRT_FONT=_font_8x8_coleco_adam_system
+
 coco/disk-post::
 	decb copy -t $(AUTOEXEC_COCO) $(R2R_DIR)/coco/$(PRODUCT).dsk,AUTOEXEC.BAS
 

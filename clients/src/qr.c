@@ -1,5 +1,3 @@
-#ifndef BUILD_ADAM
-
 #if defined(_CMOC_VERSION_)
 #include <cmoc.h>
 #include <coco.h>
@@ -59,5 +57,3 @@ void qr_show(const char *url)
   qr_wait_key();
   qr_restore();
 }
-
-#endif /* !BUILD_ADAM */

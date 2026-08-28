@@ -1,5 +1,3 @@
-#ifndef BUILD_ADAM
-
 #include <conio.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -153,5 +151,3 @@ void inputField(uint8_t x, uint8_t y, uint8_t max, char* buffer) {
     cputc(CHAR_CURSOR);
   }
 }
-
-#endif /* BUILD_ADAM */
