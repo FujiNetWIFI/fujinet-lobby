@@ -106,6 +106,9 @@ char panel_spacer_string[] = {0xA4,0xE4,0xE4,0xB4,0xB4,0xE4,0xE4,0xA4,0};
   #define CH_ESC 0x1B
   #undef COLD_BOOT
   #define COLD_BOOT eos_init()
+  // MODE 2 attribute bytes, (fg << 4) | bg over the TMS9918 palette.
+  #define GAME_HEADER_ATTR 0xFD   /* white on magenta */
+  #define BACKDROP_ATTR    0x17   /* black on cyan, the CONFIG backdrop */
   // No BACKGROUND_COLOR/FOREGROUND_COLOR: smartkeys_set_mode() already sets
   // the screen up, and z88dk has no bgcolor().
   //
@@ -347,6 +350,15 @@ void display_servers(int old_server) {
           cclear(LIST_W-7-strlen(prevGame));
           cputs("PLAYERS");
         }
+#ifdef __ADAM__
+        /* Game headers are white on magenta, the way CONFIG colours a section
+           header. Done by painting the row's attributes rather than by setting
+           textcolor() first, because the j>0 branch above pads to LIST_W-1 and
+           would otherwise leave the last column white -- a one cell notch on
+           the end of every header bar. Repainting the row covers all 32
+           columns whatever was printed. */
+        vdp_vfill(MODE2_ATTR + ((unsigned int)y << 8), GAME_HEADER_ATTR, 256);
+#endif
       }
 
     }
@@ -396,11 +408,11 @@ void display_servers(int old_server) {
      three row text panel. On the Adam that panel is the SmartKeys strip, so
      those rows are never written and were left as a slab of white background
      hanging below the last room -- which reads as empty list rows.
-     Paint whatever the list did not use back to the CONFIG backdrop (black on
-     cyan, 0x17) so the white block ends exactly where the rooms do.
+     Paint whatever the list did not use back to the CONFIG backdrop so the
+     white block ends exactly where the rooms do.
      y is the last row drawn; rows 21-23 belong to SmartKeys and are left be. */
   if (y < BOTTOM_PANEL_Y-1)
-    vdp_vfill(MODE2_ATTR + ((unsigned int)(y+1) << 8), 0x17,
+    vdp_vfill(MODE2_ATTR + ((unsigned int)(y+1) << 8), BACKDROP_ATTR,
               (unsigned int)(BOTTOM_PANEL_Y-1-y) << 8);
 #endif
 
