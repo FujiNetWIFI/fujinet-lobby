@@ -29,6 +29,11 @@ CFLAGS = -DBUILD_$(PLATFORM_UC)
 # - a URL to a git repo
 # - empty which will use whatever is the latest
 # - undefined, no fujinet-lib will be used
+#
+# The QR code screen needs fuji_qrcode_v1(), added in fujinet-lib after 4.11.2
+# (FujiNetWIFI/fujinet-lib#79). Bump this to that release before merging; until
+# then build against a checkout with
+#   make <platform> FUJINET_LIB=/path/to/fujinet-lib
 FUJINET_LIB = 4.10.0
 
 # Define extra dirs ("combos") that expand with a platform.
@@ -50,6 +55,11 @@ include mekkogx/toplevel-rules.mk
 
 AUTOEXEC_COCO = src/coco/autoexec.bas
 AUTOEXEC_MSDOS = src/msdos/AUTOEXEC.BAT
+
+# Use the Adam system font rather than the z88dk default. The pre-mekkogx
+# src/adam/Makefile set this pragma; it was dropped in the reorg, which left
+# _font_8x8_coleco_adam_system.asm compiled but never installed as the CRT font.
+LDFLAGS_EXTRA_ADAM = -pragma-redirect:CRT_FONT=_font_8x8_coleco_adam_system
 
 coco/disk-post::
 	decb copy -t $(AUTOEXEC_COCO) $(R2R_DIR)/coco/$(PRODUCT).dsk,AUTOEXEC.BAS

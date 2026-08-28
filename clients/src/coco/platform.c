@@ -1,9 +1,12 @@
 #ifdef _CMOC_VERSION_
 
 #include <stdint.h>
+#include <string.h>
 #include <coco.h>
 #include <joystick.h>
 #include <fujinet-fuji.h>
+
+#include "qr.h"
 
 extern char panel_spacer_string[];
 extern DeviceSlot device_slots[1];
@@ -177,7 +180,87 @@ void reboot(void)
     *((char*)strstr(filename, "."))=0;
 
   // Run the .bin file by the same name as the filename
-  runm(filename); 
+  runm(filename);
+}
+
+/*
+ * QR rendering: MC6847 SG4 semigraphics.
+ *
+ * Any byte >= $80 on the text screen is a semigraphics cell rather than a
+ * character: 1 CCC ULUR LLLR, where the low four bits light the four quadrants
+ * of the cell in colour CCC. That turns the 32x16 text screen into a 64x32 grid
+ * of independently lit blocks -- the only way to get 21 modules and a full
+ * 4-module quiet zone onto a screen only 16 character rows tall.
+ *
+ * The lobby already relies on this working: panel_spacer_string in main.c is a
+ * row of SG4 bytes, and coco/conio.c passes anything >= $80 through untouched.
+ *
+ * Set bits are lit, so a *light* module is a set bit and a dark module is a
+ * clear one -- the reverse of the character-cell platforms. Blocks are 4x6
+ * pixels, so modules come out stretched about 1:1.5 vertically. QR decoders
+ * build an affine transform from the three finder patterns, so a uniform
+ * stretch is recoverable, but this is the most distorted of the platforms and
+ * the one most worth testing against a real phone.
+ */
+
+#define QR_TEXT_BASE    ((uint8_t *) 0x0400)
+#define QR_TEXT_COLS    32
+#define QR_TEXT_ROWS    16
+#define QR_BLOCK_COLS   (QR_TEXT_COLS * 2)   /* 64 */
+#define QR_BLOCK_ROWS   (QR_TEXT_ROWS * 2)   /* 32 */
+
+/* Buff (colour 4) on black reads as white on this display. */
+#define QR_SG4_BASE     0xC0
+
+/* Centre the symbol plus its quiet zone in the block grid. */
+#define QR_ORIGIN_X     ((QR_BLOCK_COLS - QR_MODULES) / 2)   /* 21 */
+#define QR_ORIGIN_Y     QR_QUIET                              /* 4 */
+
+/* Is the block at (bx, by) lit? Light modules and the quiet zone are lit. */
+static uint8_t qr_block(uint8_t bx, uint8_t by) {
+  uint8_t mx, my;
+
+  if (bx < QR_ORIGIN_X || by < QR_ORIGIN_Y)
+    return 1;
+
+  mx = bx - QR_ORIGIN_X;
+  my = by - QR_ORIGIN_Y;
+
+  if (mx >= QR_MODULES || my >= QR_MODULES)
+    return 1;
+
+  return qr_get(mx, my) ? 0 : 1;
+}
+
+void qr_draw() {
+  uint8_t cx, cy, bx, by, cell;
+
+  /* The bottom character row is left as text for the prompt, so the symbol and
+     its quiet zone occupy block rows 0..29 of the 32 available. */
+  for (cy = 0; cy < QR_TEXT_ROWS - 1; cy++) {
+    for (cx = 0; cx < QR_TEXT_COLS; cx++) {
+      bx = cx * 2;
+      by = cy * 2;
+      cell = QR_SG4_BASE
+           | (qr_block(bx,     by)     << 3)   /* upper left  */
+           | (qr_block(bx + 1, by)     << 2)   /* upper right */
+           | (qr_block(bx,     by + 1) << 1)   /* lower left  */
+           | (qr_block(bx + 1, by + 1));       /* lower right */
+      QR_TEXT_BASE[cy * QR_TEXT_COLS + cx] = cell;
+    }
+  }
+
+  gotoxy(5, QR_TEXT_ROWS - 1);
+  cputs("SCAN TO CHAT - ANY KEY");
+}
+
+void qr_restore() {
+  memset(QR_TEXT_BASE, 0x60, (uint16_t) QR_TEXT_COLS * QR_TEXT_ROWS);
+}
+
+char qr_wait_key() {
+  /* cgetc() has no prototype in scope here, so cmoc assumes it returns int. */
+  return (char) cgetc();
 }
 
 #endif /* _CMOC_VERSION_ */

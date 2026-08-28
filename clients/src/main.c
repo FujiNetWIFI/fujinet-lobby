@@ -6,8 +6,6 @@
  * @license gpl v. 3
  */
 
-#ifndef BUILD_ADAM
-
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -17,8 +15,15 @@
 #include <fujinet-fuji.h>
 #include <fujinet-network.h>
 
+#ifdef __ADAM__
+#include <eos.h>
+#include <smartkeys.h>
+#include <video/tms99x8.h>
+#endif
+
 #include "platform.h"
 #include "io.h"
+#include "qr.h"
 
 #define CREATOR_ID 0x0001 /* FUJINET  */
 #define APP_ID     0x01   /* LOBBY    */
@@ -91,6 +96,27 @@ char panel_spacer_string[] = {0xA4,0xE4,0xE4,0xB4,0xB4,0xE4,0xE4,0xA4,0};
   #define BOOT_WORD "play"
 #endif
 
+#ifdef __ADAM__
+  #define PLATFORM "adam"
+  #define ACTION_VERB ", press"
+  #define BOOT_KEY "RETURN"
+  #define BOOT_WORD "play"
+  #undef SCREEN_WIDTH
+  #define SCREEN_WIDTH 32
+  #define CH_ESC 0x1B
+  #undef COLD_BOOT
+  #define COLD_BOOT eos_init()
+  // MODE 2 attribute bytes, (fg << 4) | bg over the TMS9918 palette.
+  #define GAME_HEADER_ATTR 0xFD   /* white on magenta */
+  #define BACKDROP_ATTR    0x17   /* black on cyan, the CONFIG backdrop */
+  // No BACKGROUND_COLOR/FOREGROUND_COLOR: smartkeys_set_mode() already sets
+  // the screen up, and z88dk has no bgcolor().
+  //
+  // screen_height comes back as 24, the real GRAPHICS II row count, which puts
+  // BOTTOM_PANEL_Y on row 21 -- exactly where the SmartKeys strip begins. The
+  // panel_* helpers below render there through SmartKeys rather than as text.
+#endif
+
 #ifdef BUILD_MSDOS
   #define PLATFORM "msdos"
   #define ACTION_VERB ", press"
@@ -115,6 +141,19 @@ char panel_spacer_string[] = {0xA4,0xE4,0xE4,0xB4,0xB4,0xE4,0xE4,0xA4,0};
 #define cputcxy(x,y,c) gotoxy(x,y); cputc(c);
 #define cclearxy(x,y,c) gotoxy(x,y); cclear(c);
 
+/**
+ * @brief Switch the text colours to/from the title row's.
+ *
+ * FujiNet CONFIG on the Adam draws headers as white on dark blue and content
+ * as black on white, so the row 0 writes bracket themselves with this. A no-op
+ * everywhere else.
+ */
+#ifdef __ADAM__
+  #define TITLE_COLOUR(on) adam_set_normal((on) ? WHITE : BLACK, (on) ? BLUE : WHITE)
+#else
+  #define TITLE_COLOUR(on)
+#endif
+
 char username[66];
 
 char buf[128];         // Temporary buffer use
@@ -131,7 +170,7 @@ uint8_t screen_height;
 #ifdef __WATCOMC__
 #pragma pack(push, 1)
 #endif
-typedef struct { // 189 bytes
+typedef struct { // 215 bytes, /view?bin=2
   uint8_t game_type;
   char game[17];
   char server[33];
@@ -142,6 +181,11 @@ typedef struct { // 189 bytes
   uint8_t players;
   uint8_t max_players;
   uint16_t ping_age;  // Ignored in client. Also, would need to support different endians in server for binary transfer mode
+  // Everything above is the bin=1 record and its layout is frozen. bin=2
+  // appends this: the room's web chat url, which mount() draws as a QR code
+  // for players to scan. Empty when the lobby has no chat service configured.
+  // Sized to the 25 characters a QR version 1 symbol holds, plus a terminator.
+  char chat_url[26];
 } ServerDetails;
 #ifdef __WATCOMC__
 #pragma pack(pop)
@@ -156,14 +200,89 @@ typedef struct {
 
 LobbyResponse lobby;
 
-void pause(void) { 
+void pause(void) {
   cputs("\r\nPress ");
   revers(1);
   cputs("RETURN");
   revers(0);
   cputs(" to continue.");
   cgetc();
-} 
+}
+
+/**
+ * The bottom panel.
+ *
+ * Everywhere but the Adam this is three rows of text at the foot of the
+ * screen, and these helpers are the lines that used to be written inline.
+ *
+ * On the Adam those rows are the SmartKeys strip, so messages go to the yellow
+ * status area and the action legend becomes real keycaps under keys IV/V/VI.
+ * Because smartkeys_status() redraws the whole area from one string, the Adam
+ * side accumulates what has been written and restates it.
+ */
+
+#ifdef __ADAM__
+static char panel_buf[96];
+
+static void panel_add(const char *msg)
+{
+  char *d = panel_buf + strlen(panel_buf);
+
+  // smartkeys_puts() understands \n but would draw \r as a glyph.
+  while (*msg && (d - panel_buf) < (int)sizeof(panel_buf) - 1)
+    {
+      if (*msg != '\r')
+        *d++ = *msg;
+      msg++;
+    }
+  *d = 0;
+
+  smartkeys_status(panel_buf);
+}
+#endif
+
+/// @brief Blank the bottom panel.
+void panel_clear(void)
+{
+#ifdef __ADAM__
+  panel_buf[0] = 0;
+  // smartkeys_status() only draws, it never erases, so the strip has to be
+  // blanked by redisplaying it with no keycaps -- which is also what CONFIG
+  // does whenever it puts up a status message: the actions are unavailable
+  // while the message is on screen, so the caps should not be showing.
+  smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
+#else
+  cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
+#endif
+}
+
+/**
+ * @brief Clear the panel and write msg to it.
+ * @param row offset from the top of the panel. Ignored on the Adam, where the
+ *        status area is addressed as a whole.
+ */
+void panel_status(uint8_t row, const char *msg)
+{
+#ifdef __ADAM__
+  (void)row;
+  panel_clear();
+  panel_add("  ");
+  panel_add(msg);
+#else
+  panel_clear();
+  cputsxy(0,BOTTOM_PANEL_Y+row,msg);
+#endif
+}
+
+/// @brief Continue the message panel_status() started.
+void panel_append(const char *msg)
+{
+#ifdef __ADAM__
+  panel_add(msg);
+#else
+  cputs(msg);
+#endif
+}
 
 /**
  * @brief The initial banner 
@@ -174,6 +293,10 @@ void banner(void) {
 
 #ifdef BUILD_MSDOS
   draw_box(0, 0, SCREEN_WIDTH, BOTTOM_PANEL_Y);
+#elif defined(__ADAM__)
+  // CONFIG paints a solid colour band for a header rather than drawing a rule.
+  TITLE_COLOUR(1);
+  cclearxy(0,0,SCREEN_WIDTH);
 #else
   gotoxy(0,1);
   for(j=0;j<SCREEN_WIDTH/8;j++)
@@ -185,6 +308,8 @@ void banner(void) {
     cputs("## QA MODE ##");
   else
     cputs("#FUJINET GAME LOBBY");
+
+  TITLE_COLOUR(0);
 }
 
 
@@ -225,6 +350,15 @@ void display_servers(int old_server) {
           cclear(LIST_W-7-strlen(prevGame));
           cputs("PLAYERS");
         }
+#ifdef __ADAM__
+        /* Game headers are white on magenta, the way CONFIG colours a section
+           header. Done by painting the row's attributes rather than by setting
+           textcolor() first, because the j>0 branch above pads to LIST_W-1 and
+           would otherwise leave the last column white -- a one cell notch on
+           the end of every header bar. Repainting the row covers all 32
+           columns whatever was printed. */
+        vdp_vfill(MODE2_ATTR + ((unsigned int)y << 8), GAME_HEADER_ATTR, 256);
+#endif
       }
 
     }
@@ -269,6 +403,33 @@ void display_servers(int old_server) {
   if (old_server>=0)
     return;
 
+#ifdef __ADAM__
+  /* The shared layout reserves the rows under the list for a spacer rule and a
+     three row text panel. On the Adam that panel is the SmartKeys strip, so
+     those rows are never written and were left as a slab of white background
+     hanging below the last room -- which reads as empty list rows.
+     Paint whatever the list did not use back to the CONFIG backdrop so the
+     white block ends exactly where the rooms do.
+     y is the last row drawn; rows 21-23 belong to SmartKeys and are left be. */
+  if (y < BOTTOM_PANEL_Y-1)
+    vdp_vfill(MODE2_ATTR + ((unsigned int)(y+1) << 8), BACKDROP_ATTR,
+              (unsigned int)(BOTTOM_PANEL_Y-1-y) << 8);
+#endif
+
+#ifdef __ADAM__
+  // The three actions become keycaps, so there is no need to spell out
+  // "press RETURN to play" -- the PLAY cap says it.
+  //
+  // The yellow status area is only as wide as the first unused keycap, so with
+  // IV/V/VI in use the text has 128 pixels of the proportional font to live in.
+  // The hints are split across two lines to stay inside that: one line would be
+  // 163px and would run underneath the keycaps.
+  panel_clear();
+  smartkeys_display(NULL,NULL,NULL," REFRESH"," QA MODE",
+                    lobby.server_count>0 ? "  PLAY" : NULL);
+  panel_add("  [R]efresh list  [Q]A\n");     /*  91px */
+  panel_add("  [C]hange name");              /*  72px */
+#else
   cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
 #ifndef BUILD_MSDOS
   gotoxy(0,BOTTOM_PANEL_Y-1);
@@ -295,6 +456,7 @@ void display_servers(int old_server) {
   gotoxy(SCREEN_WIDTH-11-LIST_X,screen_height-1);
   revers(1); cputs("C"); revers(0);
   cputs("hange name");
+#endif
 }
 
 void refresh_servers(bool clearScreen) { 
@@ -307,11 +469,10 @@ void refresh_servers(bool clearScreen) {
     page_offset[page]=offset;
     page_size = MAX_PAGE_SIZE - (qa_mode ? 3 : 0);
     
-    cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
-    cputsxy(0,BOTTOM_PANEL_Y+1,"Retrieving Servers..");
+    panel_status(1,"Retrieving Servers..");
 
     strcpy(buf, qa_mode ? LOBBY_QA_ENDPOINT : LOBBY_ENDPOINT);
-    strcat(buf, "?bin=1&platform=" PLATFORM "&pagesize=");
+    strcat(buf, "?bin=2&platform=" PLATFORM "&pagesize=");
     itoa(page_size, buf+strlen(buf), 10);
     strcat(buf, "&offset=");
     itoa(offset, buf+strlen(buf), 10);
@@ -329,13 +490,15 @@ void refresh_servers(bool clearScreen) {
       }
     }
 
+    TITLE_COLOUR(1);
     cputsxy(SCREEN_WIDTH-LIST_X-strlen(username),0, username);
+    TITLE_COLOUR(0);
 
     if (api_read_result<0) {
       if (attempt) {
-        cputsxy(0,BOTTOM_PANEL_Y+1,"Could not query Lobby! Error: ");
+        panel_status(1,"Could not query Lobby! Error: ");
         itoa(api_read_result, buf, 10);
-        cputs(buf);
+        panel_append(buf);
       } else {
          // Possibly reached end of list and didn't read due to 404, reset page to 0
           page=0;
@@ -343,7 +506,7 @@ void refresh_servers(bool clearScreen) {
       }
     } else if (api_read_result < sizeof(ServerDetails) || lobby.server_count == 0 || lobby.server_count > page_size) {
       if (attempt) {
-        cputsxy(0,BOTTOM_PANEL_Y+1,"No servers are online.");
+        panel_status(1,"No servers are online.");
       }
       lobby.server_count = 0;
     } else {
@@ -419,10 +582,8 @@ void mount() {
     buf[SCREEN_WIDTH/2-1]=buf[SCREEN_WIDTH/2]='.';
     strcpy(buf+SCREEN_WIDTH/2+1,client_path+strlen(client_path)-SCREEN_WIDTH/2+1);
   }
-  cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
-
-  cputsxy(0,BOTTOM_PANEL_Y, MOUNTING "\r\n");
-  cputs(buf);
+  panel_status(0, MOUNTING "\r\n");
+  panel_append(buf);
 
   // Get the host and filename
   if (filename = strstr(client_path,"/")) {
@@ -433,8 +594,7 @@ void mount() {
   host = strtok(client_path,"/");
 
   if (filename == NULL || host == NULL) {
-    cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
-    cputsxy(0,BOTTOM_PANEL_Y,"ERROR: Invalid client file");
+    panel_status(0,"ERROR: Invalid client file");
     pause();
     refresh_servers(false);
     return;
@@ -474,7 +634,13 @@ void mount() {
 
   // Set the server url in this game type's app key:
   write_appkey(CREATOR_ID,APP_ID,lobby.servers[selected_server].game_type, strlen(lobby.servers[selected_server].url), lobby.servers[selected_server].url);  
-  
+
+  // Offer the room's chat as a QR code before handing the machine to the game.
+  // Deliberately after the appkey write, so the code is only shown for a room
+  // that actually mounted, and silent if there is no chat url or the FujiNet
+  // cannot encode it -- a missing QR must never stop a game booting.
+  qr_show(lobby.servers[selected_server].chat_url);
+
   // Reboot / run the game
   reboot();
 
@@ -601,5 +767,3 @@ void main(void)
   refresh_servers(true);
   event_loop();
 }
-
-#endif /* BUILD_ADAM */

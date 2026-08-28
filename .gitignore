@@ -60,6 +60,8 @@ dkms.conf
 
 # build artifacts
 build/
+r2r/
+_cache/
 dist/
 obj/
 
