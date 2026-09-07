@@ -31,6 +31,15 @@ CFLAGS = -DBUILD_$(PLATFORM_UC)
 # - undefined, no fujinet-lib will be used
 FUJINET_LIB = 4.10.0
 
+# HIRESTXT_LIB can be
+# - a version number such as 0.5.0.2
+# - a directory which contains the built library
+# - a URL to a git repo
+# - empty which will use whatever is the latest
+# - undefined, no hirestxt-mod will be used
+# Only used for coco/dragon builds.
+HIRESTXT_LIB =
+
 # Define extra dirs ("combos") that expand with a platform.
 # Format: platform+=combo1,combo2
 PLATFORM_COMBOS = \
@@ -40,6 +49,9 @@ PLATFORM_COMBOS = \
   msxdos+=msx \
   adam_cpm+=adam
 
+# Empty suppresses the framework re-adding BASIC.SYSTEM to the apple2 disk.
+DISK_BASIC_SYSTEM =
+
 include mekkogx/toplevel-rules.mk
 
 # If you need to add extra platform-specific steps, do it below:
@@ -48,17 +60,29 @@ include mekkogx/toplevel-rules.mk
 # or
 #   apple2/disk: apple2/custom-step1 apple2/custom-step2
 
+# hirestxt puts its PMODE 4 buffer at $0A00..$21FF, so code must start above it.
+LDFLAGS_EXTRA_COCO = --org=2200 --limit=7C00
+CFLAGS_EXTRA_COCO += -Wno-const
+
 AUTOEXEC_COCO = src/coco/autoexec.bas
 AUTOEXEC_MSDOS = src/msdos/AUTOEXEC.BAT
 
-coco/disk-post::
-	decb copy -t $(AUTOEXEC_COCO) $(R2R_DIR)/coco/$(PRODUCT).dsk,AUTOEXEC.BAS
+# LOBBY.BIN loads over BASIC's program area, so a small loader placed low
+# does the RUNM from machine code instead of BASIC doing the LOADM.
+LOADER_COCO = src/coco/loader/loader.c
+LOADER_BIN = $(R2R_DIR)/coco/loader.bin
+DISK_EXTRA_DEPS_COCO := $(AUTOEXEC_COCO) $(LOADER_BIN)
+
+$(LOADER_BIN):: $(LOADER_COCO)
+	mkdir -p $(R2R_DIR)/coco
+	cmoc -o $@ $<
+
+coco/disk-post:: $(LOADER_BIN)
+	decb copy -t -0 $(AUTOEXEC_COCO) $(R2R_DIR)/coco/$(PRODUCT).dsk,AUTOEXEC.BAS
+	decb copy -b -2 $(LOADER_BIN) $(R2R_DIR)/coco/$(PRODUCT).dsk,LOADER.BIN
 
 msdos/disk-post::
 	mcopy -t -i $(R2R_DIR)/msdos/$(PRODUCT).img $(AUTOEXEC_MSDOS) "::AUTOEXEC.BAT"
-
-apple2/disk-post::
-	ac -d $(R2R_DIR)/apple2/$(PRODUCT).po BASIC.SYSTEM
 
 atari/r2r-post::
 	cp $(R2R_DIR)/atari/$(PRODUCT).com $(R2R_DIR)/atari/$(PRODUCT).xex

@@ -3,78 +3,146 @@
 #include <stdbool.h>
 #include <coco.h>
 #include <cmoc.h>
+#include <hirestxt.h>
+#include "conio.h"
 
-bool reverse=0;
-char* cursor=0x400;
-char ss[2] = {0,0};
+#define SCREEN_BUFFER (byte *)0xA00
 
-void cputs (char* s);
+#define BOX_TL 0xA0
+#define BOX_TR 0xA1
+#define BOX_BL 0xA2
+#define BOX_BR 0xA3
+#define BOX_RT 0xA4
+#define BOX_LT 0xA5
+#define BOX_V  0xA8
+#define BOX_H  0xA9
 
-unsigned char kbhit (void) { 
+static bool reverse = 0;
+
+/* bit 1 = PMODE 4 colorset, bit 0 = inverted.
+   0 black/green  1 green/black  2 black/white  3 white/black */
+static byte colorset = 1;
+
+void hirestxt_init(void)
+{
+  struct HiResTextScreenInit init =
+    {
+      SCREEN_COLS,
+      writeCharAt_42cols,
+      SCREEN_BUFFER,
+      TRUE,
+      (word *)0x112,
+      0,
+      NULL,
+      NULL,
+    };
+
+  width(32);
+  pmode(4, (byte *)init.textScreenBuffer);
+  pcls(255);
+  screen(1, (colorset >> 1) & 1);
+  initHiResTextScreen(&init);
+  setScreenInverted(colorset & 1);
+}
+
+void cycle_colorset(void)
+{
+  colorset = (colorset + 1) & 3;
+  screen(1, (colorset >> 1) & 1);
+  setScreenInverted(colorset & 1);
+}
+
+void hirestxt_close(void)
+{
+  closeHiResTextScreen();
+  width(32);
+  pmode(0, 0);
+  screen(0, 0);
+}
+
+unsigned char kbhit(void)
+{
   return (unsigned char)inkey();
 }
 
-char cgetc (void) {
+char cgetc(void)
+{
   return (char)waitkey(0);
 }
 
-void gotoxy (unsigned char x, unsigned char y) {
-  cursor=(uint16_t)32*y+0x400+x;
+void gotoxy(unsigned char x, unsigned char y)
+{
+  moveCursor(x, y);
 }
 
-void cputc (char c) {
-  ss[0]=c;
-  cputs(ss);
+void cputc(char c)
+{
+  writeChar((byte)c);
 }
 
-// Print string to screen
-void cputs (char* s) {
-  unsigned char c;
+void cputs(const char *s)
+{
+  writeString(s);
+}
 
-  while(c=*s++) {
-    if (c=='\n') {
-      cursor=cursor+ textScreenWidth - (((uint16_t)cursor-0x400) % textScreenWidth);
-    } else if (c!='\r') {
-      // Shift lowercase
-      if (c>=0x60 && c<0x80)
-        c-=0x20;
-      
-      // For text characters, handle reverse
-      if (c<0x80) {
-        // Reverse
-        c|=0x40;
+unsigned char revers(unsigned char onoff)
+{
+  unsigned char was = reverse;
 
-        // Normal
-        if (!reverse)
-          c^=0x40;
-      }
+  reverse = onoff;
+  setInverseVideoMode((BOOL)onoff);
+  return was;
+}
 
-      *cursor++=c;
-    }
+void cclear(unsigned char length)
+{
+  while (length--)
+    writeChar(' ');
+}
+
+void screensize(unsigned char *x, unsigned char *y)
+{
+  *x = SCREEN_COLS;
+  *y = SCREEN_ROWS - 1;   /* bottom row belongs to the frame */
+}
+
+/* Break the top border to hold a spaced label. */
+static void inset(unsigned char x, const char *s)
+{
+  writeCharAt_42cols(x++, 0, BOX_RT);
+  writeCharAt_42cols(x++, 0, ' ');
+  while (*s)
+    writeCharAt_42cols(x++, 0, (byte)*s++);
+  writeCharAt_42cols(x++, 0, ' ');
+  writeCharAt_42cols(x, 0, BOX_LT);
+}
+
+void draw_frame(const char *title, const char *user, unsigned char rule_y)
+{
+  unsigned char i;
+
+  for (i = 1; i < SCREEN_COLS - 1; i++) {
+    writeCharAt_42cols(i, 0, BOX_H);
+    writeCharAt_42cols(i, SCREEN_ROWS - 1, BOX_H);
+    writeCharAt_42cols(i, rule_y, BOX_H);
   }
+
+  for (i = 1; i < SCREEN_ROWS - 1; i++) {
+    writeCharAt_42cols(0, i, BOX_V);
+    writeCharAt_42cols(SCREEN_COLS - 1, i, BOX_V);
+  }
+
+  writeCharAt_42cols(0, 0, BOX_TL);
+  writeCharAt_42cols(SCREEN_COLS - 1, 0, BOX_TR);
+  writeCharAt_42cols(0, SCREEN_ROWS - 1, BOX_BL);
+  writeCharAt_42cols(SCREEN_COLS - 1, SCREEN_ROWS - 1, BOX_BR);
+  writeCharAt_42cols(0, rule_y, BOX_LT);
+  writeCharAt_42cols(SCREEN_COLS - 1, rule_y, BOX_RT);
+
+  if (title)
+    inset(2, title);
+  if (user && *user)
+    inset((unsigned char)(SCREEN_COLS - 6 - strlen(user)), user);
 }
 
-/* Enable/disable reverse character display.
-*/
-unsigned char revers (unsigned char onoff) {
-  return !(reverse = onoff);
-}
-
-/* Clear part of a line (write length spaces). */
-void cclear (unsigned char length) {
-  memset(cursor,reverse ? 0x60 : 0x20,length);
-  cursor+=length;
-}
-
-/* Return the current screen size. */
-void  screensize (unsigned char* x, unsigned char* y) {
-  *x = 32; //textScreenWidth;
-  *y = 16;// textScreenHeight;
-}
-
-/* Clear the whole screen and put the cursor into the top left corner */
-void clrscr (void) {
-  //uint8_t i;for(i=0;i<255;i++) *((uint8_t*)0x500+i)=i;
-  memset(cursor=0x400,0x20,0x200);
-}
 #endif

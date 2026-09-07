@@ -68,10 +68,8 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
 #define PLATFORM "coco"
 #define BOOT_WORD "play"
 #undef SCREEN_WIDTH
-#define SCREEN_WIDTH 32
-//char panel_spacer_string[] = {0x83,0x93,0xA3,0xB3,0xC3,0xD3,0xE3,0xF3,0};
-char panel_spacer_string[] = {0xA4,0xE4,0xE4,0xB4,0xB4,0xE4,0xE4,0xA4,0};
-#define PANEL_SPACER panel_spacer_string
+#define SCREEN_WIDTH 42
+#define FRAMED 1
 #undef BOTTOM_PANEL_ROWS
 #define BOTTOM_PANEL_ROWS 2
 #undef MOUNTING
@@ -98,10 +96,24 @@ char panel_spacer_string[] = {0xA4,0xE4,0xE4,0xB4,0xB4,0xE4,0xE4,0xA4,0};
   #define BOOT_WORD "play"
   #define CH_ESC 0x1B
   #define LIST_X 1
+#elif defined(FRAMED)
+  #define LIST_X 1
 #else
   #define LIST_X 0
 #endif
 #define LIST_W (SCREEN_WIDTH - 2 * LIST_X)
+
+#ifdef FRAMED
+  #define FOOTER_X LIST_X
+  #define ELLIPSIS_WIDTH LIST_W
+  #define CLEAR_BOTTOM_PANEL do { uint8_t _r; \
+      for (_r = BOTTOM_PANEL_Y; _r < screen_height; _r++) cclearxy(LIST_X, _r, LIST_W); \
+    } while (0)
+#else
+  #define FOOTER_X 0
+  #define ELLIPSIS_WIDTH SCREEN_WIDTH
+  #define CLEAR_BOTTOM_PANEL cclearxy(0, BOTTOM_PANEL_Y, BOTTOM_PANEL_LEN)
+#endif
 
 #ifdef __VIC20__
   #define PLATFORM "vic20"
@@ -172,19 +184,23 @@ void banner(void) {
   uint8_t j;
   clrscr();
 
-#ifdef BUILD_MSDOS
+#if defined(BUILD_MSDOS)
   draw_box(0, 0, SCREEN_WIDTH, BOTTOM_PANEL_Y);
+#elif defined(FRAMED)
+  draw_frame(qa_mode ? "## QA MODE ##" : "#FUJINET GAME LOBBY", username, BOTTOM_PANEL_Y-1);
 #else
   gotoxy(0,1);
   for(j=0;j<SCREEN_WIDTH/8;j++)
     cputs(PANEL_SPACER);
 #endif
 
+#ifndef FRAMED
   gotoxy(LIST_X, 0);
   if (qa_mode)
     cputs("## QA MODE ##");
   else
     cputs("#FUJINET GAME LOBBY");
+#endif
 }
 
 
@@ -269,8 +285,8 @@ void display_servers(int old_server) {
   if (old_server>=0)
     return;
 
-  cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
-#ifndef BUILD_MSDOS
+  CLEAR_BOTTOM_PANEL;
+#if !defined(BUILD_MSDOS) && !defined(FRAMED)
   gotoxy(0,BOTTOM_PANEL_Y-1);
   for(j=0;j<SCREEN_WIDTH/8;j++)
     cputs(PANEL_SPACER);
@@ -278,13 +294,13 @@ void display_servers(int old_server) {
 
   if (lobby.server_count>0)
   {
-    gotoxy(0,BOTTOM_PANEL_Y);
+    gotoxy(FOOTER_X,BOTTOM_PANEL_Y);
     cputs("Select game" ACTION_VERB " ");
     revers(1); cputs(BOOT_KEY); revers(0);
-    cputs(" to " BOOT_WORD "\r\n");
+    cputs(" to " BOOT_WORD);
   }
 
-  gotoxy(0,screen_height-1);
+  gotoxy(FOOTER_X,screen_height-1);
   revers(1); cputs("R"); revers(0);
   cputs("efresh list   ");
 
@@ -292,7 +308,7 @@ void display_servers(int old_server) {
   revers(1); cputs("Q"); revers(0);
   cputs("A");
 
-  gotoxy(SCREEN_WIDTH-11-LIST_X,screen_height-1);
+  gotoxy(SCREEN_WIDTH-11-LIST_X-FOOTER_X,screen_height-1);
   revers(1); cputs("C"); revers(0);
   cputs("hange name");
 }
@@ -307,8 +323,8 @@ void refresh_servers(bool clearScreen) {
     page_offset[page]=offset;
     page_size = MAX_PAGE_SIZE - (qa_mode ? 3 : 0);
     
-    cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
-    cputsxy(0,BOTTOM_PANEL_Y+1,"Retrieving Servers..");
+    CLEAR_BOTTOM_PANEL;
+    cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,"Retrieving Servers..");
 
     strcpy(buf, qa_mode ? LOBBY_QA_ENDPOINT : LOBBY_ENDPOINT);
     strcat(buf, "?bin=1&platform=" PLATFORM "&pagesize=");
@@ -329,11 +345,13 @@ void refresh_servers(bool clearScreen) {
       }
     }
 
+#ifndef FRAMED
     cputsxy(SCREEN_WIDTH-LIST_X-strlen(username),0, username);
+#endif
 
     if (api_read_result<0) {
       if (attempt) {
-        cputsxy(0,BOTTOM_PANEL_Y+1,"Could not query Lobby! Error: ");
+        cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,"Could not query Lobby! Error: ");
         itoa(api_read_result, buf, 10);
         cputs(buf);
       } else {
@@ -343,7 +361,7 @@ void refresh_servers(bool clearScreen) {
       }
     } else if (api_read_result < sizeof(ServerDetails) || lobby.server_count == 0 || lobby.server_count > page_size) {
       if (attempt) {
-        cputsxy(0,BOTTOM_PANEL_Y+1,"No servers are online.");
+        cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,"No servers are online.");
       }
       lobby.server_count = 0;
     } else {
@@ -415,14 +433,14 @@ void mount() {
     client_path = lobby.servers[selected_server].client_url;
 
   strcpy(buf,client_path);
-  if (strlen(client_path)>SCREEN_WIDTH) {
-    buf[SCREEN_WIDTH/2-1]=buf[SCREEN_WIDTH/2]='.';
-    strcpy(buf+SCREEN_WIDTH/2+1,client_path+strlen(client_path)-SCREEN_WIDTH/2+1);
+  if (strlen(client_path)>ELLIPSIS_WIDTH) {
+    buf[ELLIPSIS_WIDTH/2-1]=buf[ELLIPSIS_WIDTH/2]='.';
+    strcpy(buf+ELLIPSIS_WIDTH/2+1,client_path+strlen(client_path)-ELLIPSIS_WIDTH/2+1);
   }
-  cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
+  CLEAR_BOTTOM_PANEL;
 
-  cputsxy(0,BOTTOM_PANEL_Y, MOUNTING "\r\n");
-  cputs(buf);
+  cputsxy(FOOTER_X,BOTTOM_PANEL_Y, MOUNTING);
+  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1, buf);
 
   // Get the host and filename
   if (filename = strstr(client_path,"/")) {
@@ -433,8 +451,8 @@ void mount() {
   host = strtok(client_path,"/");
 
   if (filename == NULL || host == NULL) {
-    cclearxy(0,BOTTOM_PANEL_Y,BOTTOM_PANEL_LEN);
-    cputsxy(0,BOTTOM_PANEL_Y,"ERROR: Invalid client file");
+    CLEAR_BOTTOM_PANEL;
+    cputsxy(FOOTER_X,BOTTOM_PANEL_Y,"ERROR: Invalid client file");
     pause();
     refresh_servers(false);
     return;
@@ -528,6 +546,14 @@ void event_loop() {
     readCommonInput();
     
     switch (input.key) {
+#ifdef FRAMED
+      case 's':
+      case 'S':
+        cycle_colorset();
+        banner();
+        display_servers(-1);
+        break;
+#endif
       case 'c':
       case 'C':
         banner();  
@@ -596,6 +622,10 @@ void main(void)
   banner();
   
   register_user();
+#ifdef FRAMED
+  /* redraw the border in place so the username appears without clearing */
+  draw_frame(qa_mode ? "## QA MODE ##" : "#FUJINET GAME LOBBY", username, BOTTOM_PANEL_Y-1);
+#endif
   for(i=0;i<45;i++) waitvsync();
 
   refresh_servers(true);

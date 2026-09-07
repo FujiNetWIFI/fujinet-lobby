@@ -4,8 +4,8 @@
 #include <coco.h>
 #include <joystick.h>
 #include <fujinet-fuji.h>
+#include "conio.h"
 
-extern char panel_spacer_string[];
 extern DeviceSlot device_slots[1];
 
 #define JOY_CENTER   31
@@ -109,11 +109,7 @@ unsigned char readJoystick() {
 
 void initialize() {
   initCoCoSupport();
-
-  if (!isCoCo3) {
-    // Colored dashes don't look good on non coco3
-    strcpy(panel_spacer_string, "--------");
-  }
+  hirestxt_init();
 
   left_joy_state = JOY_NOT_USED;
   right_joy_state = JOY_NOT_USED;
@@ -159,6 +155,8 @@ void reboot(void)
   static uint8_t i;
   static char *filename;
   
+  hirestxt_close();
+
   filename = device_slots[0].file;
 
   // Strip path from filename, converting to uppercase

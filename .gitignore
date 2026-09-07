@@ -62,6 +62,9 @@ dkms.conf
 build/
 dist/
 obj/
+r2r/
+_cache/
+__pycache__/
 
 # emulator configs
 altirra-debug.ini
