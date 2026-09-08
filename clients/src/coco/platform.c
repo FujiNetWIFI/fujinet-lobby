@@ -152,30 +152,27 @@ void runm(char * filename)
 void reboot(void)
 {
   // No need to reboot - just RUNM the game
-  static uint8_t i;
-  static char *filename;
-  
+  static char *filename, *p;
+
   hirestxt_close();
 
-  filename = device_slots[0].file;
+  filename = (char *)device_slots[0].file;
 
-  // Strip path from filename, converting to uppercase
-  for(i=strlen(filename)-1;i<=255;i--) {
-    if (filename[i]== '/') {
-      filename=&filename[i+1];
-      break;
-    } else {
-      if (filename[i]>=97 && filename[i]<=122 )
-        filename[i]-=32;
-    }
-  }
-  
+  // Strip path, if any
+  if ((p = strrchr(filename, '/')))
+    filename = p + 1;
+
+  // Uppercase the remaining basename
+  for (p = filename; *p; p++)
+    if (*p >= 'a' && *p <= 'z')
+      *p -= 32;
+
   // Remove extension
-  if (strstr(filename, "."))
-    *((char*)strstr(filename, "."))=0;
+  if ((p = strchr(filename, '.')))
+    *p = 0;
 
   // Run the .bin file by the same name as the filename
-  runm(filename); 
+  runm(filename);
 }
 
 #endif /* _CMOC_VERSION_ */

@@ -60,26 +60,17 @@ include mekkogx/toplevel-rules.mk
 # or
 #   apple2/disk: apple2/custom-step1 apple2/custom-step2
 
-# hirestxt puts its PMODE 4 buffer at $0A00..$21FF, so code must start above it.
-LDFLAGS_EXTRA_COCO = --org=2200 --limit=7C00
+# Disk BASIC's own reserved workspace (FCBs, sector buffers) and the
+# hirestxt screen buffer both live below $2600; code must load above that,
+# not merely above the screen buffer. Use cmoc's stock $2800 default.
+LDFLAGS_EXTRA_COCO = --org=2800 --limit=7C00
 CFLAGS_EXTRA_COCO += -Wno-const
 
 AUTOEXEC_COCO = src/coco/autoexec.bas
 AUTOEXEC_MSDOS = src/msdos/AUTOEXEC.BAT
 
-# LOBBY.BIN loads over BASIC's program area, so a small loader placed low
-# does the RUNM from machine code instead of BASIC doing the LOADM.
-LOADER_COCO = src/coco/loader/loader.c
-LOADER_BIN = $(R2R_DIR)/coco/loader.bin
-DISK_EXTRA_DEPS_COCO := $(AUTOEXEC_COCO) $(LOADER_BIN)
-
-$(LOADER_BIN):: $(LOADER_COCO)
-	mkdir -p $(R2R_DIR)/coco
-	cmoc -o $@ $<
-
-coco/disk-post:: $(LOADER_BIN)
-	decb copy -t -0 $(AUTOEXEC_COCO) $(R2R_DIR)/coco/$(PRODUCT).dsk,AUTOEXEC.BAS
-	decb copy -b -2 $(LOADER_BIN) $(R2R_DIR)/coco/$(PRODUCT).dsk,LOADER.BIN
+coco/disk-post::
+	decb copy -t $(AUTOEXEC_COCO) $(R2R_DIR)/coco/$(PRODUCT).dsk,AUTOEXEC.BAS
 
 msdos/disk-post::
 	mcopy -t -i $(R2R_DIR)/msdos/$(PRODUCT).img $(AUTOEXEC_MSDOS) "::AUTOEXEC.BAT"

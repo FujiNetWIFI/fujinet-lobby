@@ -6,7 +6,10 @@
 #include <hirestxt.h>
 #include "conio.h"
 
-#define SCREEN_BUFFER (byte *)0xA00
+/* HDB-DOS reserves FCBADR/FCB1/FCB2/system-FCB ($0A89-$0DD4 with the
+   default FILES 2) directly below its graphics-page boundary at $0E00;
+   a buffer any lower corrupts the FCB LOADM itself uses. */
+#define SCREEN_BUFFER (byte *)0xE00
 
 #define BOX_TL 0xA0
 #define BOX_TR 0xA1

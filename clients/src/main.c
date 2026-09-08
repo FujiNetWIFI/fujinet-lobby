@@ -231,6 +231,9 @@ void display_servers(int old_server) {
 
       if (old_server<0)
       {
+#ifdef FRAMED
+        setBoldMode(TRUE);
+#endif
         cputsxy(LIST_X,y,prevGame);
         if (j>0)
         {
@@ -241,6 +244,9 @@ void display_servers(int old_server) {
           cclear(LIST_W-7-strlen(prevGame));
           cputs("PLAYERS");
         }
+#ifdef FRAMED
+        setBoldMode(FALSE);
+#endif
       }
 
     }
