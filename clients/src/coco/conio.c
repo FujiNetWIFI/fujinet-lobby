@@ -1,4 +1,4 @@
-#if _CMOC_VERSION_
+#ifdef _CMOC_VERSION_
 
 #include <stdbool.h>
 #include <coco.h>
@@ -149,4 +149,4 @@ void draw_frame(const char *title, const char *user, unsigned char rule_y)
     inset((unsigned char)(SCREEN_COLS - 6 - strlen(user)), user);
 }
 
-#endif
+#endif /* _CMOC_VERSION_ */

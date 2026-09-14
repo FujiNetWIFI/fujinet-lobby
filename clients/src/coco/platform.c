@@ -28,14 +28,12 @@ unsigned char readJoystick() {
     bool lbtn1, lbtn2, rbtn1, rbtn2;
     byte h, v;
 
-    byte buttons = readJoystickButtons();   /* active-high */
+    byte buttons = readJoystickButtons();   /* active-low: a clear bit means pressed */
 
-    /* NOTE: As of right now, the enum in the coco.h */
-    /* header file is incorrect for the button values. */
-    lbtn1  = (buttons & 0x02 ) == 0;
-    lbtn2  = (buttons & 0x08 ) == 0;
-    rbtn1  = (buttons & 0x01 ) == 0;
-    rbtn2  = (buttons & 0x04 ) == 0;
+    lbtn1  = (buttons & JOYSTK_BUTTON_1_LEFT)  == 0;
+    lbtn2  = (buttons & JOYSTK_BUTTON_2_LEFT)  == 0;
+    rbtn1  = (buttons & JOYSTK_BUTTON_1_RIGHT) == 0;
+    rbtn2  = (buttons & JOYSTK_BUTTON_2_RIGHT) == 0;
 
     // The first time a button is pressed,
     // ONLY register that the joystick is active
@@ -100,10 +98,6 @@ unsigned char readJoystick() {
         if (h >= JOY_HIGH_TH)
             value |= 8; /* right */
     }
-    else
-    {
-        value = 0;
-    } 
 
     return value;
 }
@@ -123,23 +117,24 @@ void waitvsync() {
     while (!getTimer());
 }
 
+#define LINBUF  ((char *)0x2dc)   /* Color BASIC line input buffer, $02DC-$03D6 */
+#define CHARAD  (*(char **)0xa6)  /* interpreter's current-character pointer */
+
 /// @brief Invokes the CoCo BASIC RUNM command
-/// @param filename 
-void runm(char * filename) 
+/// @param filename
+void runm(char * filename)
 {
     // This reproduces the state when executing RUNM"FILE in BASIC
     // by filling in the command line buffer and jumping directly
     // to the Basic RUN procedure
 
-    // Set beginning of (compressed) command: M"
-    *((uint16_t*)0x2dd)=0x4D22;
+    LINBUF[1] = 'M';
+    LINBUF[2] = '"';
+    strcpy(LINBUF + 3, filename);
 
-    // Add the filename to the command
-    strcpy(0x2df,filename);
+    // GETNCH pre-increments, so CHARAD points at the 'M', not past it
+    CHARAD = LINBUF + 1;
 
-    // Set command pointer
-    *((uint16_t*)0xa6)=0x2dd; // set CHARAD
-    
     // Jump to "RUNM" command
     asm
     {
@@ -163,18 +158,13 @@ void reboot(void)
   filename = (char *)device_slots[0].file;
 
   // Strip path, if any
-  p = strrchr(filename, '/');
-  if (p)
+  if ((p = strrchr(filename, '/')))
     filename = p + 1;
 
-  // Uppercase the remaining basename
-  for (p = filename; *p; p++)
-    if (*p >= 'a' && *p <= 'z')
-      *p -= 32;
+  strupr(filename);
 
   // Remove extension
-  p = strchr(filename, '.');
-  if (p)
+  if ((p = strchr(filename, '.')))
     *p = 0;
 
   // Run the .bin file by the same name as the filename
