@@ -72,8 +72,6 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
 #define FRAMED 1
 #undef BOTTOM_PANEL_ROWS
 #define BOTTOM_PANEL_ROWS 2
-#undef MOUNTING
-#define MOUNTING "LOADING"
 #define CH_ESC 0x03
 #undef COLD_BOOT
 #define COLD_BOOT coldStart()
@@ -123,9 +121,9 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
 
 
 // gotoxy + c* saves a little space
-#define cputsxy(x,y,s) gotoxy(x,y); cputs(s);
-#define cputcxy(x,y,c) gotoxy(x,y); cputc(c);
-#define cclearxy(x,y,c) gotoxy(x,y); cclear(c);
+#define cputsxy(x,y,s) do { gotoxy(x,y); cputs(s); } while (0)
+#define cputcxy(x,y,c) do { gotoxy(x,y); cputc(c); } while (0)
+#define cclearxy(x,y,c) do { gotoxy(x,y); cclear(c); } while (0)
 
 char username[66];
 
@@ -139,6 +137,10 @@ bool more_pages;       // True if should check for more pages
 int8_t selected_server = 0;    // Currently selected server
 
 uint8_t screen_height;
+
+#ifdef _CMOC_VERSION_
+char loading_name[17];   // Set by mount(), consumed by reboot() in coco/platform.c
+#endif
 
 #ifdef __WATCOMC__
 #pragma pack(push, 1)
@@ -443,6 +445,15 @@ void mount() {
     buf[ELLIPSIS_WIDTH/2-1]=buf[ELLIPSIS_WIDTH/2]='.';
     strcpy(buf+ELLIPSIS_WIDTH/2+1,client_path+strlen(client_path)-ELLIPSIS_WIDTH/2+1);
   }
+#ifdef _CMOC_VERSION_
+  // reboot() prints this once it has left graphics mode
+  for (i = 0; i < sizeof(loading_name) - 1 && lobby.servers[selected_server].game[i]; i++) {
+    char c = lobby.servers[selected_server].game[i];
+    loading_name[i] = (c >= 'a' && c <= 'z') ? c - 32 : c;
+  }
+  loading_name[i] = 0;
+#endif
+
   CLEAR_BOTTOM_PANEL;
 
   cputsxy(FOOTER_X,BOTTOM_PANEL_Y, MOUNTING);

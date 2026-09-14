@@ -2,11 +2,13 @@
 
 #include <stdint.h>
 #include <coco.h>
+#include <cmoc.h>
 #include <joystick.h>
 #include <fujinet-fuji.h>
 #include "conio.h"
 
 extern DeviceSlot device_slots[1];
+extern char loading_name[17];
 
 #define JOY_CENTER   31
 #define JOY_HALF     16
@@ -156,10 +158,13 @@ void reboot(void)
 
   hirestxt_close();
 
+  printf("LOADING %s...", loading_name);
+
   filename = (char *)device_slots[0].file;
 
   // Strip path, if any
-  if ((p = strrchr(filename, '/')))
+  p = strrchr(filename, '/');
+  if (p)
     filename = p + 1;
 
   // Uppercase the remaining basename
@@ -168,7 +173,8 @@ void reboot(void)
       *p -= 32;
 
   // Remove extension
-  if ((p = strchr(filename, '.')))
+  p = strchr(filename, '.');
+  if (p)
     *p = 0;
 
   // Run the .bin file by the same name as the filename

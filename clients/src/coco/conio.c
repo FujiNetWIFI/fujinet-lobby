@@ -61,6 +61,7 @@ void hirestxt_close(void)
   width(32);
   pmode(0, 0);
   screen(0, 0);
+  cls(255);
 }
 
 unsigned char kbhit(void)
