@@ -11,6 +11,10 @@ on:
 
 jobs:
   clients:
+    # Pinned explicitly. Left to GitHub, the name is generated from every
+    # matrix variable, so allow_failure would appear in it as "(msxrom, true)"
+    # - and the job name is what the ruleset matches its required checks on.
+    name: clients (${{ matrix.platform }})
     runs-on: ubuntu-latest
 
     strategy:

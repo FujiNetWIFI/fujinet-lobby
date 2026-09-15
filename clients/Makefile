@@ -46,7 +46,11 @@ endif
 # - empty which will use whatever is the latest
 # - undefined, no hirestxt-mod will be used
 # Only used for coco/dragon builds.
-HIRESTXT_LIB =
+#
+# Pinned deliberately. Left empty, mekkogx asks api.github.com for the latest
+# release on every build, which is rate limited and fails CI at random; a
+# pinned version skips that call and downloads the release directly.
+HIRESTXT_LIB = 0.5.1.5
 
 # Define extra dirs ("combos") that expand with a platform.
 # Format: platform+=combo1,combo2
