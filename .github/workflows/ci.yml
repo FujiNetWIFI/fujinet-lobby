@@ -61,15 +61,47 @@ jobs:
           name: ${{ matrix.platform }}
           path: clients/r2r/${{ matrix.platform }}/**
 
+  # Trees outside clients/ whose toolchains are not in the defoogi image yet.
+  # Not required to merge and expected to fail for now - they are here for
+  # visibility, and should start passing once the toolchains land in
+  # mekkogx/defoogi.
+  #
+  # Each also has a developer's absolute home directory hardcoded in its
+  # Makefile, which has to be parameterized before it can build anywhere else:
+  #
+  #   atari-2600  FN2600="/home/wario/Workspace/fujinet-firmware/pico/atari-2600"
+  #   coleco      make -C /home/wario/Workspace/fujinet-lib-experimental
+  #   intv        intybasic lobby.bas lobby.asm /home/wario/Workspace/IntyBASIC/intybasic/
+  #
+  # atari-2600 additionally needs Macroassembler AS, and intv needs intybasic.
+  extra:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - atari-2600
+          - coleco
+          - intv
+
+    container:
+      image: fozztexx/defoogi:1.4.7
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        working-directory: ${{ matrix.target }}
+        run: make
+
 # ---------------------------------------------------------------------------
 # Disabled jobs
 #
-# Each is blocked on something that has to be fixed in the tree first, not on
-# anything CI can solve. Uncomment a job once its blocker below is cleared.
-# ---------------------------------------------------------------------------
-#
-# server - Go build. The only local failure was `sqlite3: not found` inside the
-# container, so this likely just needs sqlite3 present. Untested in CI.
+# server - Go build, not a client platform. The only local failure was
+# `sqlite3: not found` inside the container, so this likely just needs sqlite3
+# present. Untested in CI.
 #
 #  server:
 #    runs-on: ubuntu-latest
@@ -79,46 +111,4 @@ jobs:
 #      - uses: actions/checkout@v4
 #      - name: Build
 #        working-directory: server
-#        run: make
-#
-# ---------------------------------------------------------------------------
-# atari-2600, coleco and intv each have a developer's absolute home directory
-# hardcoded in their Makefile, so they build on exactly one machine:
-#
-#   atari-2600  FN2600="/home/wario/Workspace/fujinet-firmware/pico/atari-2600"
-#   coleco      make -C /home/wario/Workspace/fujinet-lib-experimental
-#   intv        intybasic lobby.bas lobby.asm /home/wario/Workspace/IntyBASIC/intybasic/
-#
-# Those paths must be parameterized before any of these can run anywhere else.
-# atari-2600 additionally needs Macroassembler AS and intv needs intybasic;
-# neither is confirmed present in the defoogi image.
-#
-#  atari-2600:
-#    runs-on: ubuntu-latest
-#    container:
-#      image: fozztexx/defoogi:1.4.7
-#    steps:
-#      - uses: actions/checkout@v4
-#      - name: Build
-#        working-directory: atari-2600
-#        run: make
-#
-#  coleco:
-#    runs-on: ubuntu-latest
-#    container:
-#      image: fozztexx/defoogi:1.4.7
-#    steps:
-#      - uses: actions/checkout@v4
-#      - name: Build
-#        working-directory: coleco
-#        run: make
-#
-#  intv:
-#    runs-on: ubuntu-latest
-#    container:
-#      image: fozztexx/defoogi:1.4.7
-#    steps:
-#      - uses: actions/checkout@v4
-#      - name: Build
-#        working-directory: intv
 #        run: make
