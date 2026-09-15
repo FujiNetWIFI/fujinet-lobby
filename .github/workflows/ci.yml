@@ -20,21 +20,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Required to merge. These are the checks named in the "Protect main"
-        # ruleset, so a failure here blocks the pull request.
+        # Every client platform is built. NOTE: which of these are allowed to
+        # block a merge is NOT set here - that is the list of required status
+        # checks in the repository's branch ruleset. Adding or removing a
+        # platform below changes what gets built, not what gates a merge.
         platform:
           - adam
+          - adam_cpm
           - apple2
           - atari
+          - c64
           - coco
           - msdos
+          - msxrom
 
-        # Built for visibility but not required to merge, so a failure here
-        # does not block. Promote one by adding it to the list above AND to
-        # the ruleset's required status checks.
         include:
-          - platform: c64
-
           # z88dk cannot parse the library header:
           #   fujinet-fuji.h:309: Cannot parse function argument 'NewDisk'
           - platform: adam_cpm
@@ -45,8 +45,8 @@ jobs:
           - platform: msxrom
             allow_failure: true
 
-    # Keeps a known-broken platform from reddening the whole run. Its real
-    # status is still visible on the job itself.
+    # Stops a known-broken platform reddening the whole run. This only affects
+    # the run's own status - it has no bearing on merge requirements.
     continue-on-error: ${{ matrix.allow_failure || false }}
 
     container:
@@ -66,9 +66,8 @@ jobs:
           path: clients/r2r/${{ matrix.platform }}/**
 
   # Trees outside clients/ whose toolchains are not in the defoogi image yet.
-  # Not required to merge and expected to fail for now - they are here for
-  # visibility, and should start passing once the toolchains land in
-  # mekkogx/defoogi.
+  # Expected to fail for now - they are here for visibility, and should start
+  # passing once the toolchains land in mekkogx/defoogi.
   #
   # Each also has a developer's absolute home directory hardcoded in its
   # Makefile, which has to be parameterized before it can build anywhere else:
@@ -79,8 +78,8 @@ jobs:
   #
   # atari-2600 additionally needs Macroassembler AS, and intv needs intybasic.
   extra:
+    name: extra (${{ matrix.target }})
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     strategy:
       fail-fast: false
@@ -89,6 +88,18 @@ jobs:
           - atari-2600
           - coleco
           - intv
+
+        # Drop a target's entry here once it builds, so that a later
+        # regression shows up as a failure instead of being swallowed.
+        include:
+          - target: atari-2600
+            allow_failure: true
+          - target: coleco
+            allow_failure: true
+          - target: intv
+            allow_failure: true
+
+    continue-on-error: ${{ matrix.allow_failure || false }}
 
     container:
       image: fozztexx/defoogi:1.4.7
