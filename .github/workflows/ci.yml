@@ -16,6 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Required to merge. These are the checks named in the "Protect main"
+        # ruleset, so a failure here blocks the pull request.
         platform:
           - adam
           - apple2
@@ -23,16 +25,25 @@ jobs:
           - coco
           - msdos
 
-          # Builds clean as of this writing, held back pending review.
-          #- c64
+        # Built for visibility but not required to merge, so a failure here
+        # does not block. Promote one by adding it to the list above AND to
+        # the ruleset's required status checks.
+        include:
+          - platform: c64
 
           # z88dk cannot parse the library header:
           #   fujinet-fuji.h:309: Cannot parse function argument 'NewDisk'
-          #- adam_cpm
+          - platform: adam_cpm
+            allow_failure: true
 
-          # No platform implementation: src/msxrom and include/msxrom
-          # do not exist. Only mekkogx/platforms/msxrom.mk is present.
-          #- msxrom
+          # Cannot pass yet: fujinet-lib ships no msxrom build, and there is
+          # no port behind it either (no src/msxrom, no include/msxrom).
+          - platform: msxrom
+            allow_failure: true
+
+    # Keeps a known-broken platform from reddening the whole run. Its real
+    # status is still visible on the job itself.
+    continue-on-error: ${{ matrix.allow_failure || false }}
 
     container:
       image: fozztexx/defoogi:1.4.7
