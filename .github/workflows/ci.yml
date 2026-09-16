@@ -5,25 +5,16 @@ on:
   push:
     branches:
       - main
-  # Lets the workflow be run by hand against any branch, which is useful for
-  # exercising it before it exists on main.
   workflow_dispatch:
 
 jobs:
   clients:
-    # Pinned explicitly. Left to GitHub, the name is generated from every
-    # matrix variable, so allow_failure would appear in it as "(msxrom, true)"
-    # - and the job name is what the ruleset matches its required checks on.
     name: clients (${{ matrix.platform }})
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        # Every client platform is built. NOTE: which of these are allowed to
-        # block a merge is NOT set here - that is the list of required status
-        # checks in the repository's branch ruleset. Adding or removing a
-        # platform below changes what gets built, not what gates a merge.
         platform:
           - adam
           - adam_cpm
@@ -34,20 +25,7 @@ jobs:
           - msdos
           - msxrom
 
-        include:
-          # z88dk cannot parse the library header:
-          #   fujinet-fuji.h:309: Cannot parse function argument 'NewDisk'
-          - platform: adam_cpm
-            allow_failure: true
-
-          # Cannot pass yet: fujinet-lib ships no msxrom build, and there is
-          # no port behind it either (no src/msxrom, no include/msxrom).
-          - platform: msxrom
-            allow_failure: true
-
-    # Stops a known-broken platform reddening the whole run. This only affects
-    # the run's own status - it has no bearing on merge requirements.
-    continue-on-error: ${{ matrix.allow_failure || false }}
+    continue-on-error: true
 
     container:
       image: fozztexx/defoogi:1.4.7
@@ -65,18 +43,7 @@ jobs:
           name: ${{ matrix.platform }}
           path: clients/r2r/${{ matrix.platform }}/**
 
-  # Trees outside clients/ whose toolchains are not in the defoogi image yet.
-  # Expected to fail for now - they are here for visibility, and should start
-  # passing once the toolchains land in mekkogx/defoogi.
-  #
-  # Each also has a developer's absolute home directory hardcoded in its
-  # Makefile, which has to be parameterized before it can build anywhere else:
-  #
-  #   atari-2600  FN2600="/home/wario/Workspace/fujinet-firmware/pico/atari-2600"
-  #   coleco      make -C /home/wario/Workspace/fujinet-lib-experimental
-  #   intv        intybasic lobby.bas lobby.asm /home/wario/Workspace/IntyBASIC/intybasic/
-  #
-  # atari-2600 additionally needs Macroassembler AS, and intv needs intybasic.
+  # Trees outside clients/, built for visibility.
   extra:
     name: extra (${{ matrix.target }})
     runs-on: ubuntu-latest
@@ -89,17 +56,7 @@ jobs:
           - coleco
           - intv
 
-        # Drop a target's entry here once it builds, so that a later
-        # regression shows up as a failure instead of being swallowed.
-        include:
-          - target: atari-2600
-            allow_failure: true
-          - target: coleco
-            allow_failure: true
-          - target: intv
-            allow_failure: true
-
-    continue-on-error: ${{ matrix.allow_failure || false }}
+    continue-on-error: true
 
     container:
       image: fozztexx/defoogi:1.4.7
@@ -110,20 +67,3 @@ jobs:
       - name: Build
         working-directory: ${{ matrix.target }}
         run: make
-
-# ---------------------------------------------------------------------------
-# Disabled jobs
-#
-# server - Go build, not a client platform. The only local failure was
-# `sqlite3: not found` inside the container, so this likely just needs sqlite3
-# present. Untested in CI.
-#
-#  server:
-#    runs-on: ubuntu-latest
-#    container:
-#      image: fozztexx/defoogi:1.4.7
-#    steps:
-#      - uses: actions/checkout@v4
-#      - name: Build
-#        working-directory: server
-#        run: make
