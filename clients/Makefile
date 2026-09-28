@@ -41,6 +41,7 @@ endif
 
 # HIRESTXT_LIB can be
 # - a version number such as 0.5.0.2
+#   (0.5.1.7+ defaults to the no-VT52 build; append +vt52 for the full one)
 # - a directory which contains the built library
 # - a URL to a git repo
 # - empty which will use whatever is the latest
@@ -50,7 +51,7 @@ endif
 # Pinned deliberately. Left empty, mekkogx asks api.github.com for the latest
 # release on every build, which is rate limited and fails CI at random; a
 # pinned version skips that call and downloads the release directly.
-HIRESTXT_LIB = 0.5.1.5
+HIRESTXT_LIB = 0.5.1.7
 
 # Define extra dirs ("combos") that expand with a platform.
 # Format: platform+=combo1,combo2
