@@ -67,3 +67,30 @@ jobs:
       - name: Build
         working-directory: ${{ matrix.target }}
         run: make
+
+  # The NES client links fujinet-lib-experimental's nes target, which the
+  # container does not carry; build it from the branch the client tracks.
+  nes:
+    name: extra (nes)
+    runs-on: ubuntu-latest
+
+    continue-on-error: true
+
+    container:
+      image: fozztexx/defoogi:1.4.7
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch fujinet-lib-experimental
+        run: git clone --depth 1 --branch add-nes https://github.com/tschak909/fujinet-lib-experimental.git "$RUNNER_TEMP/fnlib"
+
+      - name: Build
+        working-directory: nes
+        run: make FNLIB="$RUNNER_TEMP/fnlib"
+
+      - name: Upload artifact for nes
+        uses: actions/upload-artifact@v4
+        with:
+          name: nes
+          path: nes/build/lobby.nes
