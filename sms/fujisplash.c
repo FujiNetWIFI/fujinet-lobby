@@ -1,0 +1,86 @@
+/* Canonical home: fujinet-config sms/ (branch sms-phantasy-star, fncfg-sms
+ * worktree), synced at 09dc155. This is a synced copy -- fix bugs THERE,
+ * re-sync. */
+
+/* fujisplash.c -- the boot splash. */
+
+#include <arch/sms.h>
+
+#include "fujidisp.h"
+#include "fujiin.h"
+#include "fujisnd.h"
+#include "fujisplash.h"
+
+/* Twelve glyph groups of eight, top of the artwork to the bottom: white
+ * through light blue to the BIOS's SEGA blue (SMS colour bytes, --BBGGRR). */
+static const unsigned char logo_colors[12] = {
+    0x3F, 0x3F, 0x3E, 0x3D, 0x3C, 0x38, 0x39, 0x34, 0x34, 0x30, 0x30, 0x20,
+};
+
+static void centre(unsigned char row, const char *s)
+{
+    unsigned char n = 0;
+
+    while (s[n] != '\0')
+        n++;
+    disp_at((unsigned char)(n >= DISP_COLS ? 0 : (DISP_COLS - n) / 2), row, s);
+}
+
+void splash_show(void)
+{
+    unsigned int g;
+    unsigned char r, i, last, level = 0, quiet = 0, f = 0;
+
+    disp_init();
+    disp_vdp_reg(1, 0x80);
+    pal_level(0);                       /* drawn in the dark, then faded up */
+    for (i = 0; i < 12; i++)
+        pal_set((unsigned char)(4 + i), logo_colors[i]);
+
+    /* Glyph g in colour 4 + g/8: its one plane spread over that index. */
+    disp_vram_addr(SPLASH_PATTERN * 32);
+    for (g = 0; g < 96 * 8; g++) {
+        unsigned char ci = (unsigned char)(4 + g / 64);
+        unsigned char row = splash_patterns[g];
+
+        IO_VDP_DATA = (ci & 1) ? row : 0;
+        IO_VDP_DATA = (ci & 2) ? row : 0;
+        IO_VDP_DATA = (ci & 4) ? row : 0;
+        IO_VDP_DATA = (ci & 8) ? row : 0;
+    }
+
+    for (r = 0; r < 10; r++) {
+        disp_vram_addr(0x3800 + (unsigned int)(SPLASH_ROW + r) * DISP_COLS * 2);
+        for (i = 0; i < DISP_COLS; i++) {
+            unsigned char t = splash_nametable[(unsigned int)r * DISP_COLS + i];
+
+            IO_VDP_DATA = t ? t : ' ';
+            IO_VDP_DATA = 0;
+        }
+    }
+
+    centre(18, "FOR THE SEGA MASTER SYSTEM");
+    centre(21, "PRESS BUTTON 1");
+    disp_vdp_reg(1, 0xC0);
+
+    /* The fanfare starts with the fade; button 1 is taken at any point, and
+     * half a second after the fanfare ends CONFIG goes on by itself. */
+    snd_play(SND_TITLE);
+    cur_show(7, 21, T_TRI, ' ');
+    last = in_frames();
+    for (;;) {
+        if (in_read() == IN_FIRE)
+            break;
+        if (in_frames() == last)
+            continue;
+        last = in_frames();
+        f++;
+        if (level < 9 && (f & 3) == 0)
+            pal_level(++level);
+        if (!snd_busy() && ++quiet > 30)
+            break;
+    }
+    cur_hide();
+    fade_out();
+    snd_init();
+}
