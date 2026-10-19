@@ -67,3 +67,45 @@ jobs:
       - name: Build
         working-directory: ${{ matrix.target }}
         run: make
+
+  # The Emerson Arcadia 2001 lobby: 2650 assembly, Macro Assembler AS.
+  # There is NO distro package for AS -- Debian's and Ubuntu's "asl" is the
+  # Advanced Simulation Library, something else entirely -- so it is built
+  # from the release-tracking mirror of Alfred Arnold's source, the recipe
+  # fujinet-firmware's pico-carts.yml uses for the Arcadia cart.
+  arcadia:
+    name: extra (arcadia)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Macro Assembler AS
+        id: cache-asl
+        uses: actions/cache@v4
+        with:
+          path: ~/asl
+          key: asl-upstream-${{ runner.os }}-v1
+
+      - name: Build Macro Assembler AS
+        if: steps.cache-asl.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch upstream \
+            https://github.com/Macroassembler-AS/asl-releases.git /tmp/asl-src
+          cd /tmp/asl-src
+          cp Makefile.def-samples/Makefile.def-i386-unknown-linux2.x.x Makefile.def
+          # The sample pins -march=i586, which will not build on x86-64.
+          sed -i 's|^CFLAGS.*|CFLAGS = -O2 -w|' Makefile.def
+          make -j"$(nproc)"
+          mkdir -p ~/asl
+          cp asl p2bin ~/asl/
+
+      - name: Build
+        working-directory: arcadia
+        run: make
+
+      - name: Upload artifact for arcadia
+        uses: actions/upload-artifact@v4
+        with:
+          name: arcadia
+          path: arcadia/build/lobby.bin
