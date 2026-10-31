@@ -27,6 +27,10 @@ progress bar and the tools are a snapshot of fujinet-config's `o2/` (main
 A page shows 4 records and asks for 5: the 5th says a next page exists. A
 record takes 2 rows at most, so the 8 rows always hold a page.
 
+`screenshots/` holds MAME shots made from mock rooms: the list, a long name
+scrolling, page 2, the help, the name prompt, a join, its bar, and no rooms.
+`make shots` regenerates them from `test/seed/shots.json`.
+
 ## Controls
 
 | Key | Does |

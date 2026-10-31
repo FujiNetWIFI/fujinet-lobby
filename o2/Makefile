@@ -8,6 +8,7 @@
 #                         fujinet-pc and lobby server, checked against the
 #                         screen's text (tools/cfgtest.py)
 #   make rows             frame stability of the list, NTSC and PAL
+#   make shots            screenshots/, from mock rooms (test/seed/shots.json)
 
 CHECK = O2SIM_FAST=1 python3 tools/cfgtest.py
 T = build/t/lobby.bin
@@ -47,7 +48,18 @@ rows: $(T)
 	    test/rig.sh test/scen/rows.scen build/run/rows_pal 60 $(T)
 	python3 tools/rowcheck.py build/run/rows_pal list
 
+shots: $(T) build/5card/5card.bin
+	rm -rf build/shots
+	NAME=ODYSSEY LOBBY_SEED=$(SEED)/shots.json FUJINET_PACE_MS=40 \
+	    test/rig.sh test/scen/shots.scen build/shots 120 $(T)
+	LOBBY_SEED=$(SEED)/shots.json O2SIM_FAST=1 \
+	    test/rig.sh test/scen/shots_name.scen build/shots 60 $(T)
+	NAME=ODYSSEY LOBBY_SEED=$(SEED)/empty.json O2SIM_FAST=1 \
+	    test/rig.sh test/scen/shots_empty.scen build/shots 60 $(T)
+	mkdir -p screenshots
+	cp build/shots/*.png screenshots/
+
 clean:
 	rm -rf build
 
-.PHONY: all run test rows clean
+.PHONY: all run test rows shots clean
