@@ -1,0 +1,6 @@
+# no rooms (the server's 404)
+wait 150
+screen empty
+expect empty 3 NO ROOMS
+expect empty 4 OPEN
+expect empty T1 R RELOAD ? HELP

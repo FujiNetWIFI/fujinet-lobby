@@ -1,0 +1,118 @@
+[
+ {
+  "game": "5 Card Stud",
+  "appkey": 1,
+  "server": "Basement",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=basement",
+  "status": "online",
+  "maxplayers": 8,
+  "curplayers": 2,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/5card.bin"
+   },
+   {
+    "platform": "atari",
+    "url": "tnfs://ec.tnfs.io/atari/5card.xex"
+   }
+  ]
+ },
+ {
+  "game": "5 Card Stud",
+  "appkey": 1,
+  "server": "the den",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=den",
+  "status": "online",
+  "maxplayers": 8,
+  "curplayers": 1,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/5card.bin"
+   }
+  ]
+ },
+ {
+  "game": "5 Card Stud",
+  "appkey": 1,
+  "server": "A Very Long Room Name Here",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=long",
+  "status": "online",
+  "maxplayers": 8,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/5card.bin"
+   }
+  ]
+ },
+ {
+  "game": "Battleship",
+  "appkey": 5,
+  "server": "Harbor",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=harbor",
+  "status": "online",
+  "maxplayers": 2,
+  "curplayers": 1,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/battleship.bin"
+   }
+  ]
+ },
+ {
+  "game": "Battleship",
+  "appkey": 5,
+  "server": "AI-3",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=ai3",
+  "status": "offline",
+  "maxplayers": 2,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/battleship.bin"
+   }
+  ]
+ },
+ {
+  "game": "K.C. Munchkin",
+  "appkey": 7,
+  "server": "Maze One",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=maze",
+  "status": "online",
+  "maxplayers": 2,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/games/kc.bin"
+   }
+  ]
+ },
+ {
+  "game": "Lynx Only",
+  "appkey": 3,
+  "server": "Elsewhere",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=lynx",
+  "status": "online",
+  "maxplayers": 4,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "lynx",
+    "url": "tnfs://ec.tnfs.io/lynx/x.lnx"
+   }
+  ]
+ }
+]

@@ -1,0 +1,5 @@
+# no lobby server at all
+wait 300
+screen down
+expect down 3 NETWORK
+expect down 4 ERROR CF

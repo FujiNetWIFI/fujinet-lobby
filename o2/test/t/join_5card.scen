@@ -1,0 +1,7 @@
+# a join: 5 Card Stud (an APPBANK image), the first room; it boots and
+# reads the name
+wait 150
+press fire
+wait 500
+snap card
+expectfile SD/FujiNet/00010101.key==http://127.0.0.1:9/?table=basement

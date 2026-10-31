@@ -1,0 +1,3 @@
+# frame stability: the list, the bar on a short name (nothing scrolls)
+wait 200
+burst list 60

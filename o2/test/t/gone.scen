@@ -1,0 +1,11 @@
+# the room goes before the join's second look (LOBBY_CHANGE: deleted):
+# ROOM GONE, then the list without it
+wait 150
+press fire
+wait 60
+screen gone
+expect gone 5 ROOM GONE
+key ENT
+wait 120
+screen list
+expect list 1 THE DEN
