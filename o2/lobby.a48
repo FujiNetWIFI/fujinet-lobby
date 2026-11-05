@@ -1,0 +1,34 @@
+; lobby.a48 -- the FujiNet game lobby for the Magnavox Odyssey 2 / Philips
+; Videopac. A protocol 2 (APPBANK) image on the O2 CONFIG's engine: the fixed
+; half (src/fixed.inc: the display engine) and NPAGES pages, one assembly per
+; page; build.sh sets PAGE.
+
+    cpu 8048
+    include "g7000.h"
+    include "flags.inc"
+    include "equ.inc"
+    include "ram.inc"
+    include "page.inc"
+    include "fixed.inc"
+
+    if PAGE=0
+    include "p0.inc"
+    elseif PAGE=1
+    include "p1.inc"
+    elseif PAGE=2
+    include "p2.inc"
+    elseif PAGE=3
+    include "p3.inc"
+    elseif PAGE=4
+    include "p4.inc"
+    elseif PAGE=5
+    include "p5.inc"
+    elseif PAGE=6
+    include "p6.inc"
+    elseif PAGE=7
+    include "p7.inc"
+    elseif PAGE=8
+    include "p8.inc"
+    elseif PAGE=9
+    include "p9.inc"
+    endif

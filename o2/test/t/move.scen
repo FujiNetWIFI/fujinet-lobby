@@ -1,0 +1,7 @@
+# the room moves before the join's second look (LOBBY_CHANGE: Basement's
+# players to 0): found among its neighbours, joined all the same
+wait 150
+press fire
+wait 500
+snap card
+expectfile SD/FujiNet/00010101.key==http://127.0.0.1:9/?table=basement

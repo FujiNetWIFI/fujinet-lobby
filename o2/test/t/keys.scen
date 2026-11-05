@@ -1,0 +1,40 @@
+# the help and back; N: the name edited (a bad one refused); R reloads
+wait 150
+key ?
+wait 60
+screen help
+expect help T0 HELP: LOBBY
+expect help 2 FIRE   JOIN
+key ENT
+wait 60
+screen back
+expect back 1 BASEMENT
+expect back T0 LOBBY PLAYER1
+type N
+wait 60
+screen edit
+expect edit T0 YOUR NAME
+key CLR 4
+key CLR 4
+key CLR 4
+key CLR 4
+key CLR 4
+key CLR 4
+key CLR 4
+type ZZ-9
+key ENT
+wait 40
+screen bad
+expect bad T0 YOUR NAME
+key CLR
+key CLR
+type 9
+key ENT
+wait 150
+screen named
+expect named T0 LOBBY ZZ9
+expectfile SD/FujiNet/00010100.key==ZZ9
+type R
+wait 120
+screen reload
+expect reload 1 BASEMENT

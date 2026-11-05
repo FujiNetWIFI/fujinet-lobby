@@ -1,0 +1,66 @@
+[
+ {
+  "game": "Errors",
+  "appkey": 9,
+  "server": "Bad Url",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=badurl",
+  "status": "online",
+  "maxplayers": 2,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "http://example.com/x.bin"
+   }
+  ]
+ },
+ {
+  "game": "Errors",
+  "appkey": 9,
+  "server": "No Host",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=nohost",
+  "status": "online",
+  "maxplayers": 2,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://nohost.invalid/x.bin"
+   }
+  ]
+ },
+ {
+  "game": "Errors",
+  "appkey": 9,
+  "server": "Not Game",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=notgame",
+  "status": "online",
+  "maxplayers": 2,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/games/readme.txt"
+   }
+  ]
+ },
+ {
+  "game": "Errors",
+  "appkey": 9,
+  "server": "Too Big",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=toobig",
+  "status": "online",
+  "maxplayers": 2,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/games/big.bin"
+   }
+  ]
+ }
+]

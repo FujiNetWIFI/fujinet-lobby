@@ -1,0 +1,6 @@
+# the first run's name prompt, a name typed (x x: upper case)
+wait 150
+type **
+type ODYSSEY
+wait 10
+snap name

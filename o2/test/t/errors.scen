@@ -1,0 +1,37 @@
+# joins that fail, each back to the list on its room: a client URL that
+# isn't tnfs://, a host that won't mount (written into the first empty
+# slot), not a game, too big
+wait 150
+screen list
+expect list 0 ERRORS
+expect list 1 BAD URL
+press fire
+wait 60
+screen badurl
+expect badurl 5 BAD GAME URL
+key ENT
+wait 120
+press down
+press fire
+wait 150
+screen nohost
+expect nohost 5 HOST ERROR
+key ENT
+wait 120
+press down
+press fire
+wait 150
+screen notgame
+expect notgame 6 NOT A GAME
+key ENT
+wait 120
+press down
+press fire
+wait 150
+screen toobig
+expect toobig 6 TOO BIG
+key ENT
+wait 120
+screen back
+expect back 1 BAD URL
+expectfile fnconfig.ini|nohost.invalid
