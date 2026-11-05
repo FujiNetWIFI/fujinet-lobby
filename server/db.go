@@ -74,6 +74,20 @@ func init_db() {
 // here instead, idempotently, at every startup.
 func migrate_db() {
 
+	migrate_add_column("chat_url", "TEXT NOT NULL DEFAULT ''")
+	migrate_add_column("id", "INT NOT NULL DEFAULT 0")
+
+	// Servers stored before ids existed (or before this process ran the
+	// migration) have id 0; number them now.
+	err := txGameServerAssignMissingIds()
+	if err != nil {
+		DB.Fatalf("Unable to assign server ids (%s)", err)
+	}
+}
+
+// migrate_add_column adds a column to GameServer if it is not there yet.
+func migrate_add_column(name string, definition string) {
+
 	// SQLite has no "ADD COLUMN IF NOT EXISTS", so ask before telling.
 	var columns []struct {
 		Name string `db:"name"`
@@ -85,14 +99,14 @@ func migrate_db() {
 	}
 
 	for _, column := range columns {
-		if column.Name == "chat_url" {
+		if column.Name == name {
 			return
 		}
 	}
 
-	_, err = DATABASE.Exec(`ALTER TABLE GameServer ADD COLUMN chat_url TEXT NOT NULL DEFAULT ''`)
+	_, err = DATABASE.Exec(`ALTER TABLE GameServer ADD COLUMN ` + name + ` ` + definition)
 	if err != nil {
-		DB.Fatalf("Unable to add the chat_url column (%s)", err)
+		DB.Fatalf("Unable to add the %s column (%s)", name, err)
 	}
 
 	// The GameServerClients view selects GameServer.*, which SQLite expands
@@ -108,5 +122,5 @@ func migrate_db() {
 		DB.Fatalf("Unable to rebuild the GameServerClients view (%s)", err)
 	}
 
-	DB.Println("Migrated: added GameServer.chat_url")
+	DB.Printf("Migrated: added GameServer.%s", name)
 }

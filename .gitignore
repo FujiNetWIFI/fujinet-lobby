@@ -79,3 +79,4 @@ Makefile.options
 db/*
 *.sqlite3*
 lobbyPersist
+intermediates

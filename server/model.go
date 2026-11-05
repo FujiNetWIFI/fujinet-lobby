@@ -23,6 +23,10 @@ type GameServer struct {
 	// Assigned by the lobby from the chat service, never accepted from a game
 	// server. UpsertServer discards whatever a publisher puts here.
 	ChatUrl string `json:"chaturl,omitempty"`
+
+	// Number of the server within its game type, assigned by the lobby (see
+	// txGameServerUpsert) and never accepted from a game server.
+	ID int `json:"id,omitempty"`
 }
 
 type GameServerSlice []GameServer
@@ -40,6 +44,7 @@ type GameServerDelete struct {
 
 // used to retrieve the data from the database from GameServerClient view
 type GameServerClient struct {
+	ID              int
 	Serverurl       string
 	Game            string
 	Appkey          int
@@ -69,6 +74,57 @@ type GameServerMin struct {
 	Curplayers int    `json:"p"`
 	Pingage    int    `json:"a"`
 	ChatUrl    string `json:"h,omitempty"`
+}
+
+// One row per game type for /games
+type GameSummary struct {
+	Appkey  int    `json:"t" db:"Appkey"`
+	Game    string `json:"g" db:"Game"`
+	Players int    `json:"p" db:"players"`
+}
+
+type GameSummarySlice []GameSummary
+
+// Append the fixed-size binary record for /games?bin=1: appkey, game name
+// (16+NUL) and players online, saturating at 255.
+func (s GameSummary) appendAsBinary(buf []byte) []byte {
+	buf = append(buf, byte(s.Appkey))
+	buf = appendFixedLengthString(buf, s.Game, 16)
+
+	return append(buf, byte(min(s.Players, 255)))
+}
+
+// One row per server for /games/{game}
+type GameList struct {
+	ID         int    `json:"i" db:"id"`
+	Server     string `json:"s" db:"Server"`
+	Maxplayers int    `json:"m" db:"Maxplayers"`
+	Curplayers int    `json:"p" db:"Curplayers"`
+}
+
+type GameListSlice []GameList
+
+// Append the fixed-size binary record for /games/{game}?bin=1: server id (saturating
+// at 255), server name (32+NUL), max and current players.
+func (s GameList) appendAsBinary(buf []byte) []byte {
+	buf = append(buf, byte(min(s.ID, 255)))
+	buf = appendFixedLengthString(buf, s.Server, 32)
+
+	return append(buf, byte(s.Maxplayers), byte(s.Curplayers))
+}
+
+// The urls to join one server of a game, for /games/{game}/{server}
+type GameInstance struct {
+	Serverurl string `json:"u" db:"serverurl"`
+	Client    string `json:"c" db:"client_url"`
+}
+
+// Append the fixed-size binary record for /games/{game}/{server}?bin=1: server url (64+NUL)
+// then client url (64+NUL).
+func (s GameInstance) appendAsBinary(buf []byte) []byte {
+	buf = appendFixedLengthString(buf, s.Serverurl, 64)
+
+	return appendFixedLengthString(buf, s.Client, 64)
 }
 
 // minimize file to send to 8 bit client filtering by platform
@@ -101,6 +157,7 @@ func (s GameServerClient) toGameServer() (gameserver GameServer) {
 		Maxplayers: s.Maxplayers,
 		Curplayers: s.Curplayers,
 		ChatUrl:    s.Chat_url,
+		ID:         s.ID,
 		Clients:    []GameClient{{Platform: s.Client_platform, Url: s.Client_url}},
 	}
 }
