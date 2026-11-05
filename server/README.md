@@ -27,10 +27,20 @@ This service acts as a central registry for the FujiNet Game System, allowing:
 | `/` | GET | HTML view of available servers |
 | `/docs` | GET | Documentation page |
 | `/viewFull` | GET | Full JSON representation of all servers |
-| `/view` | GET | Minimized JSON or binary representation of servers (optimized for 8-bit clients) |
+| `/view` | GET | (**Deprecated in favor of /games**) -  Minimized JSON or binary representation of servers (optimized for 8-bit clients) |
+| `/games` | GET | One entry per game type: `t` game type (appkey), `g` name, `p` players online. Games with players first, then alphabetical. Required `platform`; optional `page`, `offset`, `pagesize`, `bin=1` |
+| `/games/{game}` | GET | Servers for one game type (`game` is the appkey, 1-255): `i` server id (unique within the game type, stable), `s` name, `m` max players, `p` current players. With `bin=1` each record is id, name (32+NUL), max, current. Required `platform`; optional `page`, `offset`, `pagesize`, `bin=1` |
+| `/games/{game}/{server}` | GET | Urls to join a game from the server with id `{server}` (the `i` from `/games/{game}`): `u` server url, `c` client url. Required `platform`; optional `bin=1` |
 | `/version` | GET | Server version and status information |
 | `/server` | POST | Register or update a server |
 | `/server` | DELETE | Remove a server from the registry |
+
+### Mirroring production locally
+
+`make copy-prod` (or `./lobbyPersist -copyprod`) clears the local `db/lobby.sqlite3` and reloads it
+from `https://lobby.fujinet.online/viewFull`, then exits. Use `-produrl` to copy from another lobby.
+Nothing is cleared if the source cannot be reached or has no servers. Since it is a command line
+action rather than an endpoint, it cannot be triggered over http.
 
 ### Database
 

@@ -35,7 +35,10 @@ CREATE TABLE GameServer (
     -- Chat room URL for this server, assigned by the chat service and handed to
     -- 8-bit clients so they can render it as a QR code. Empty when no chat
     -- service is configured, or when it could not be reached.
-    chat_url TEXT NOT NULL DEFAULT ''
+    chat_url TEXT NOT NULL DEFAULT '',
+    -- Number of this server within its game type (appkey), starting at 1. Assigned
+    -- by the lobby, lowest free number first, and stable once set. 0 = not yet assigned.
+    id INT NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX idx_GameServer_Serverurl ON GameServer (Serverurl ASC);
 
