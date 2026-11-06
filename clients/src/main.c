@@ -19,6 +19,7 @@
 
 #include "platform.h"
 #include "io.h"
+#include "qr.h"
 
 #define CREATOR_ID 0x0001 /* FUJINET  */
 #define APP_ID     0x01   /* LOBBY    */

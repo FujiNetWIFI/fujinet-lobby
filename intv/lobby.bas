@@ -28,6 +28,7 @@
     ' config.bas documents as producing a cart that fails EXEC's boot
     ' detection under jzIntv.
     ASM ORG $D000
+    INCLUDE "st_qr.bas"
     INCLUDE "st_boot.bas"
 
 lb_boot_start:
@@ -51,9 +52,9 @@ lb_boot_start:
 
 lb_main_loop:
     WAIT
-    ' 0-based: ST_LIST=0, ST_BOOT=1 (constants.bas), matching this label
-    ' order exactly -- ON...GOSUB indexes by state directly.
-    ON state GOSUB do_list, do_boot
+    ' 0-based: ST_LIST=0, ST_QR=1, ST_BOOT=2 (constants.bas), matching this
+    ' label order exactly -- ON...GOSUB indexes by state directly.
+    ON state GOSUB do_list, do_qr, do_boot
     GOTO lb_main_loop
 
 lb_halt:

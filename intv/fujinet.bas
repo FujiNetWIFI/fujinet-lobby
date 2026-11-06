@@ -62,6 +62,10 @@
     CONST FUJICMD_MOUNT_HOST       = $F9
     CONST FUJICMD_MOUNT_IMAGE      = $F8
     CONST FUJICMD_SET_DEVICE_FULLPATH = $E2
+    CONST FUJICMD_QRCODE_INPUT  = $BC
+    CONST FUJICMD_QRCODE_ENCODE = $BD
+    CONST FUJICMD_QRCODE_LENGTH = $BE
+    CONST FUJICMD_QRCODE_OUTPUT = $BF
 
     CONST MODE_READ = 1
 
@@ -414,4 +418,87 @@ fj_set_device_fullpath: PROCEDURE
     #fn_txlen = 256
 
     GOSUB fn_transact
+END
+
+' ---------------------------------------------------------------------------
+' QR code encoding.
+'
+' The FujiNet does the encoding; we hand it a string, ask for version 1, and
+' read back the module matrix. Version 1 is 21x21, which is the largest symbol
+' that fits the colored-squares grid at one module per square -- version 2 is
+' 25x25 and will not fit at any placement, so the version is pinned rather than
+' left to the firmware to choose.
+'
+' Unlike SIO, this bus carries as many parameters as the descriptor declares,
+' so ENCODE's three arguments all go on the wire normally.
+' ---------------------------------------------------------------------------
+
+DIM #qr_len
+
+' qr_input: append fn_len bytes at #fn_src to the encoder's input buffer.
+qr_input: PROCEDURE
+    mb_dev = FUJI_DEVICEID
+    mb_cmd = FUJICMD_QRCODE_INPUT
+    mb_nparam = 1
+    pm_i = 0 : pm_size = 2 : #pm_val = fn_len : GOSUB fn_param
+
+    #fn_txlen = 0
+    GOSUB fn_putstr
+
+    GOSUB fn_transact
+END
+
+' qr_encode_v1: encode what was staged, as version 1 / ECC LOW, no url
+' shortening (the shortener returns a LAN-local address, which is no use to a
+' phone that is not on the same network).
+qr_encode_v1: PROCEDURE
+    mb_dev = FUJI_DEVICEID
+    mb_cmd = FUJICMD_QRCODE_ENCODE
+    mb_nparam = 3
+    pm_i = 0 : pm_size = 1 : #pm_val = 1 : GOSUB fn_param   ' version 1
+    pm_i = 1 : pm_size = 1 : #pm_val = 0 : GOSUB fn_param   ' ECC LOW
+    pm_i = 2 : pm_size = 1 : #pm_val = 0 : GOSUB fn_param   ' no shortening
+
+    #fn_txlen = 0
+    GOSUB fn_transact
+END
+
+' qr_length: select the output format and read back its size into #qr_len.
+' Format 0 is the raw binary matrix. Selecting a format re-renders the symbol
+' that is already encoded, so this stays valid after ENCODE cleared the input.
+qr_length: PROCEDURE
+    mb_dev = FUJI_DEVICEID
+    mb_cmd = FUJICMD_QRCODE_LENGTH
+    mb_nparam = 1
+    pm_i = 0 : pm_size = 1 : #pm_val = 0 : GOSUB fn_param   ' binary output
+
+    #fn_txlen = 0
+    GOSUB fn_transact
+
+    IF fn_ok THEN
+        #qr_len = (PEEK(FN_RX) AND 255) + (PEEK(FN_RX + 1) AND 255) * 256
+    ELSE
+        #qr_len = 0
+    END IF
+END
+
+' qr_output: read #qr_len bytes of encoded output into SC_QRRAW.
+'
+' A version 1 symbol is 57 bytes, comfortably inside FN_RX's 512-byte window,
+' so this never needs chunking. It is destructive on the FujiNet side -- the
+' bytes are erased as they are sent -- so it must not be retried.
+qr_output: PROCEDURE
+    mb_dev = FUJI_DEVICEID
+    mb_cmd = FUJICMD_QRCODE_OUTPUT
+    mb_nparam = 1
+    pm_i = 0 : pm_size = 2 : #pm_val = #qr_len : GOSUB fn_param
+
+    #fn_txlen = 0
+    GOSUB fn_transact
+
+    IF fn_ok THEN
+        FOR fn_i = 0 TO #qr_len - 1
+            POKE (SC_QRRAW + fn_i), PEEK(FN_RX + fn_i) AND 255
+        NEXT fn_i
+    END IF
 END

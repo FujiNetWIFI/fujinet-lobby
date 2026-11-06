@@ -97,7 +97,8 @@
     ' from do_list (matching st_hosts.bas's hosts_edit_selected pattern),
     ' since grid_entry already blocks in its own internal WAIT loop.
     CONST ST_LIST = 0
-    CONST ST_BOOT = 1
+    CONST ST_QR   = 1
+    CONST ST_BOOT = 2
 
     ' -------------------------------------------------------------------
     ' Character-grid text entry layout (input.bas's grid_entry). All 95
@@ -130,7 +131,12 @@
 
     ' -------------------------------------------------------------------
     ' Wire record layout (server/model.go's GameServerMin.appendAsBinary),
-    ' 189 bytes/record after a 3-byte header (count, 2 reserved).
+    ' 215 bytes/record after a 3-byte header (count, 2 reserved).
+    '
+    ' Everything up to REC_PINGAGE is the frozen bin=1 record; bin=2 appends
+    ' REC_CHATURL, the room's web chat url, which st_qr.bas draws as a QR code
+    ' for players to scan. 26 bytes: the 25 characters a QR version 1 symbol
+    ' holds, plus a NUL.
     ' -------------------------------------------------------------------
     CONST REC_GAMETYPE    = 0    '   1  appkey key_id for the URL handoff
     CONST REC_GAME        = 1    '  17  group header text
@@ -142,7 +148,8 @@
     CONST REC_PLAYERS     = 185  '   1
     CONST REC_MAXPLAYERS  = 186  '   1
     CONST REC_PINGAGE     = 187  '   2  unused
-    CONST REC_STRIDE      = 189
+    CONST REC_CHATURL     = 189  '  26  chat room url, may be empty
+    CONST REC_STRIDE      = 215
 
     ' LIST_LAST_ROW is 9, not 10, because of the colour stack: the tan
     ' selection bar needs a non-empty dark green run beneath it, so row 10
@@ -165,13 +172,19 @@
     ' -------------------------------------------------------------------
     ' Scratch RAM ($8000-$9BFF) -- ours, outside the mailbox proper ($9C00+).
     ' -------------------------------------------------------------------
-    CONST SC_RECS      = $8000  ' 1701  9 x 189 verbatim wire records
-    CONST SC_NAME       = $8700 '    9  username, NUL-terminated
-    CONST SC_EDIT       = $8710 '   16  grid-entry accumulator / numeral scratch
+    CONST SC_RECS      = $8000  ' 1935  9 x 215 verbatim wire records
+    ' SC_RECS now runs to $878F, so the two blocks that used to sit at $8700
+    ' and $8710 have moved out of its way. Everything from SC_HOSTS on is
+    ' unchanged.
+    CONST SC_NAME       = $8790 '    9  username, NUL-terminated
+    CONST SC_EDIT       = $87A0 '   16  grid-entry accumulator / numeral scratch
     CONST SC_HOSTS      = $8800 '  256  8 x 32, verbatim READ_HOST_SLOTS mirror
     CONST SC_BOOTPATH   = $8900 '  256  full path for SET_DEVICE_FULLPATH
     CONST SC_PSTK       = $8A00 '   20  page-start offset stack, 10 x 2 LE
     CONST SC_EROW       = $8A20 '    9  per-record screen row it was drawn on
     CONST SC_ENTRY      = $8A30 '  128  selected room name, bounce-scroll source
     CONST SC_PREVGAME   = $8AB0 '   17  previous record's game, lb_count_pages
-    ' $8AC1-$9BFF free
+    CONST SC_QRRAW      = $8AD0 '   57  FUJICMD_QRCODE_OUTPUT reply, verbatim
+    CONST SC_QRBITS     = $8B10 '  441  one byte per module, unpacked
+    CONST SC_QRURL      = $8CD0 '   26  the url handed to the encoder
+    ' $8CF0-$9BFF free
