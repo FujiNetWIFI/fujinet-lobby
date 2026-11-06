@@ -6,6 +6,7 @@ PLATFORMS += atari
 PLATFORMS += c64
 PLATFORMS += coco
 PLATFORMS += msdos
+PLATFORMS += model2
 #PLATFORMS += msxrom
 
 # You can run 'make <platform>' to build for a specific platform,
@@ -67,6 +68,8 @@ include mekkogx/toplevel-rules.mk
 # not merely above the screen buffer. Use cmoc's stock $2800 default.
 LDFLAGS_EXTRA_COCO = --org=2800 --limit=7C00
 CFLAGS_EXTRA_COCO += -Wno-const
+
+LDFLAGS_EXTRA_MODEL2 = -pragma-define:CRT_TRIM_BSS=1
 
 # Adam system font instead of the z88dk default
 LDFLAGS_EXTRA_ADAM = -pragma-redirect:CRT_FONT=_font_8x8_coleco_adam_system
