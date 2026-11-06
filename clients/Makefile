@@ -68,6 +68,9 @@ include mekkogx/toplevel-rules.mk
 LDFLAGS_EXTRA_COCO = --org=2800 --limit=7C00
 CFLAGS_EXTRA_COCO += -Wno-const
 
+# Adam system font instead of the z88dk default
+LDFLAGS_EXTRA_ADAM = -pragma-redirect:CRT_FONT=_font_8x8_coleco_adam_system
+
 AUTOEXEC_COCO = src/coco/autoexec.bas
 AUTOEXEC_MSDOS = src/msdos/AUTOEXEC.BAT
 
