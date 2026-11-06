@@ -500,7 +500,7 @@ func TestVersion(t *testing.T) {
 func privateAddressServer(serverurl string, clienturl string) string {
 	return `{
         "game": "Test Game",
-        "appkey": 1,
+        "appkey": 199,
         "server": "lanbox",
         "region": "us",
         "serverurl": "` + serverurl + `",
@@ -714,13 +714,14 @@ func TestGamesSummaryAndList(t *testing.T) {
 		}
 	}
 
-	// two games sharing an appkey must be counted apart
-	for _, game := range []string{"Chess A", "Chess B"} {
-		body := `{"game":"` + game + `","appkey":9,"server":"s","region":"us","serverurl":"http://x/` + game + `","status":"online","maxplayers":4,"curplayers":2,"clients":[{"platform":"zx81","url":"http://x/c.xex"}]}`
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/server", bytes.NewBuffer([]byte(body)))
-		ROUTER.ServeHTTP(w, req)
-	}
+	// two games sharing an appkey must be counted apart. POST /server now refuses
+	// that, but rows from before the check can still hold it, so insert the second
+	// one directly.
+	body := `{"game":"Chess A","appkey":9,"server":"s","region":"us","serverurl":"http://x/Chess A","status":"online","maxplayers":4,"curplayers":2,"clients":[{"platform":"zx81","url":"http://x/c.xex"}]}`
+	req, _ := http.NewRequest("POST", "/server", bytes.NewBuffer([]byte(body)))
+	ROUTER.ServeHTTP(httptest.NewRecorder(), req)
+	txGameServerUpsert(GameServer{Game: "Chess B", Appkey: 9, Server: "s", Region: "us", Serverurl: "http://x/Chess B",
+		Status: "online", Maxplayers: 4, Curplayers: 2, Clients: []GameClient{{Platform: "zx81", Url: "http://x/c.xex"}}}, "")
 	for _, err := range assertHTTPAnswerJSON(getPath("/games?platform=zx81"), 200, `[{"t":9,"g":"Chess A","p":2},{"t":9,"g":"Chess B","p":2}]`) {
 		t.Errorf("shared appkey: %s", err)
 	}
@@ -786,5 +787,48 @@ func TestServerIdsAreLowestFreePerGameType(t *testing.T) {
 	}
 	if a := idOf(urls[0]); a != 1 {
 		t.Fatalf("backfilled id = %d, want 1", a)
+	}
+}
+
+// an appkey belongs to one game: another name under it is refused, the same name is not
+func TestAppkeyOfAnotherGameIsRejected(t *testing.T) {
+	post := func(game, serverurl string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/server", bytes.NewBuffer([]byte(`{"game":"`+game+`","appkey":210,"server":"s","region":"us","serverurl":"`+serverurl+`","status":"online","maxplayers":2,"curplayers":0,"clients":[{"platform":"atari","url":"http://y/c.xex"}]}`)))
+		ROUTER.ServeHTTP(w, req)
+		return w
+	}
+	urls := []string{"http://y/a", "http://y/b", "http://y/c"}
+	defer func() {
+		for _, u := range urls {
+			txGameServerDelete(u)
+		}
+	}()
+
+	if w := post("Reversi", urls[0]); w.Code != 201 {
+		t.Fatalf("first server: HTTP %d %s", w.Code, w.Body.String())
+	}
+
+	// a server alone under its appkey may rename its game
+	if w := post("Reversi II", urls[0]); w.Code != 201 {
+		t.Fatalf("rename: HTTP %d %s", w.Code, w.Body.String())
+	}
+
+	if w := post("Reversi II", urls[1]); w.Code != 201 {
+		t.Fatalf("same game: HTTP %d %s", w.Code, w.Body.String())
+	}
+
+	// the game list groups by exact name, so a different case is another game
+	if w := post("REVERSI ii", urls[2]); w.Code != 400 {
+		t.Fatalf("same game, other case: HTTP %d %s", w.Code, w.Body.String())
+	}
+
+	w := post("Othello", urls[2])
+	if errors := assertHTTPAnswerJSON(w, 400, `{"success":false,
+		"message":"VALIDATEERR - Appkey belongs to another game",
+		"errors":["appkey 210 is registered to game 'Reversi II', not 'Othello'. Use exactly 'Reversi II' (case included) as the game name, or register a new appkey for your game at `+APPKEY_REGISTRY_URL+`"]}`); errors != nil {
+		for _, err := range errors {
+			t.Errorf("POST /server %s", err)
+		}
 	}
 }

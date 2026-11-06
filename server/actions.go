@@ -473,6 +473,28 @@ func UpsertServer(c *gin.Context) {
 		return
 	}
 
+	// An appkey identifies one game type: refuse a server that reuses one
+	// already registered to a different game, most likely by mistake. The
+	// match is exact, case included, since the game list groups by exact name.
+	registeredGame, found, err := txGameNameGetByAppkey(server.Appkey, server.Serverurl)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError,
+			gin.H{"success": false,
+				"message": "Database transaction issue",
+				"errors":  []string{err.Error()}})
+		return
+	}
+
+	if found && registeredGame != server.Game {
+		c.AbortWithStatusJSON(http.StatusBadRequest,
+			gin.H{"success": false,
+				"message": "VALIDATEERR - Appkey belongs to another game",
+				"errors": []string{fmt.Sprintf("appkey %d is registered to game '%s', not '%s'. Use exactly '%s' (case included) as the game name, or register a new appkey for your game at %s",
+					server.Appkey, registeredGame, server.Game, registeredGame, APPKEY_REGISTRY_URL)}})
+		return
+	}
+
 	// Never accepted from a publisher; the lobby assigns it.
 	server.ChatUrl = ""
 	server.ID = 0

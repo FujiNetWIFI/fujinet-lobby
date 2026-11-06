@@ -41,6 +41,9 @@ var (
 const (
 	VERSION   = "5.5.7"
 	STRINGVER = "fujinet persistent lobby  " + VERSION + "/" + runtime.GOOS + " (c) Roger Sen 2025"
+
+	// where game authors look up the appkey assigned to their game, as linked from doc.html
+	APPKEY_REGISTRY_URL = "https://github.com/FujiNetWIFI/fujinet-firmware/wiki/AppKey-Registry-Page"
 )
 
 //go:embed doc.html
@@ -106,7 +109,7 @@ func main() {
 	router.GET("/", ShowServersHtml)
 	router.GET("/docs", ShowDocs)
 	router.GET("/viewFull", ShowServers)
-	router.GET("/view", ShowServersMinimised) 
+	router.GET("/view", ShowServersMinimised)
 	router.GET("/games", ShowGamesSummary)
 	router.GET("/games/:game", ShowGamesList)
 	router.GET("/games/:game/:server", ShowGamesInstance)

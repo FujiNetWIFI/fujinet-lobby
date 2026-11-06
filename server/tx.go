@@ -99,6 +99,27 @@ func txGameInstanceGetBy(platform string, appkey int, id int) (instance GameInst
 	return instances[0], true, nil
 }
 
+// Retrieve the game name already registered under an appkey by any server other than
+// serverurl, so a server can still rename its game while it is the only one of its type.
+// found is false when no other server uses the appkey.
+func txGameNameGetByAppkey(appkey int, serverurl string) (game string, found bool, err error) {
+
+	var games []string
+
+	err = DATABASE.Select(&games, "SELECT Game FROM GameServer WHERE appkey = $1 AND Serverurl <> $2 ORDER BY rowid LIMIT 1", appkey, serverurl)
+
+	if err != nil {
+		DB.Printf("%s error: (%s)", extendedFnName(), err)
+		return "", false, err
+	}
+
+	if len(games) == 0 {
+		return "", false, nil
+	}
+
+	return games[0], true, nil
+}
+
 // Upsert new GameServer with client input.
 //
 // chatUrl is the room URL from the chat service, or empty if the service is
