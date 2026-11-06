@@ -111,6 +111,21 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
   #define BACKDROP_ATTR 0x17   /* black on cyan, CONFIG's backdrop */
 #endif
 
+#ifdef __TRS80M2__
+  #define PLATFORM "model2"
+  #define ACTION_VERB ", press"
+  #define BOOT_KEY "ENTER"
+  #define BOOT_WORD "play"
+  #undef SCREEN_WIDTH
+  #define SCREEN_WIDTH 80
+  #define FRAMED 1
+  #define CH_ESC 0x1B
+  // fuji_set_boot_mode(0) would mount the MS-DOS CONFIG: one RS-232 image
+  #define NO_CONFIG_BOOT
+  #undef COLD_BOOT
+  #define COLD_BOOT quit()
+#endif
+
 #ifdef BUILD_MSDOS
   #define PLATFORM "msdos"
   #define ACTION_VERB ", press"
@@ -755,7 +770,7 @@ void event_loop() {
 #endif
 
     switch (input.key) {
-#ifdef FRAMED
+#ifdef _CMOC_VERSION_
       case 's':
       case 'S':
         cycle_colorset();
@@ -786,7 +801,9 @@ void event_loop() {
           close_game();
           break;
         }
+#ifndef NO_CONFIG_BOOT
         fuji_set_boot_mode(0);
+#endif
         COLD_BOOT;
     }
     
