@@ -94,6 +94,7 @@
             </table>
       </p>
       <p>Any additional fields will be ignored by the server.</p>
+      <p>An appkey identifies a single game. If other servers are already registered with the same <code>appkey</code> under a different <code>game</code> name, the submission is rejected with an HTTP 400. The name must match exactly, case included; otherwise register a new appkey for your game in the <a href="https://github.com/FujiNetWIFI/fujinet-firmware/wiki/AppKey-Registry-Page">AppKey Registry</a>.</p>
       <p>In case of errors, the server will reply with a <code>http status 400</code> and the following json payload
 <pre><code>{
   "success": false,
