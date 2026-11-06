@@ -1,13 +1,11 @@
 PRODUCT = lobby
 PLATFORMS += adam
-PLATFORMS += adam_cpm
+#PLATFORMS += adam_cpm
 PLATFORMS += apple2
 PLATFORMS += atari
 PLATFORMS += c64
 PLATFORMS += coco
 PLATFORMS += msdos
-
-# No platform implementation: src/msxrom and include/msxrom do not exist
 #PLATFORMS += msxrom
 
 # You can run 'make <platform>' to build for a specific platform,
@@ -30,14 +28,7 @@ CFLAGS = -DBUILD_$(PLATFORM_UC)
 # - a URL to a git repo
 # - empty which will use whatever is the latest
 # - undefined, no fujinet-lib will be used
-FUJINET_LIB = 4.10.0
-
-# msdos support only exists in lib-experimental. mekkogx/common.mk sets
-# PLATFORM before including this file, so the library can be chosen per
-# platform instead of having to override FUJINET_LIB on the command line.
-ifeq ($(PLATFORM),msdos)
-  FUJINET_LIB = https://github.com/FozzTexx/fujinet-lib-experimental.git
-endif
+FUJINET_LIB = https://github.com/FujiNetWIFI/fujinet-lib.git
 
 # HIRESTXT_LIB can be
 # - a version number such as 0.5.0.2
@@ -48,9 +39,7 @@ endif
 # - undefined, no hirestxt-mod will be used
 # Only used for coco/dragon builds.
 #
-# Pinned deliberately. Left empty, mekkogx asks api.github.com for the latest
-# release on every build, which is rate limited and fails CI at random; a
-# pinned version skips that call and downloads the release directly.
+# Pinned so a new hirestxt-mod release can't change the build.
 HIRESTXT_LIB = 0.5.1.7
 
 # Define extra dirs ("combos") that expand with a platform.

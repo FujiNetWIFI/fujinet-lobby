@@ -19,7 +19,8 @@ endef
 # Automatically figure out PLATFORM from the .mk file that included us
 PLATFORM_MK := $(call pop,$(MAKEFILE_LIST))
 PLATFORM := $(basename $(notdir $(lastword $(PLATFORM_MK))))
-PLATFORM_UC := $(shell echo "$(PLATFORM)" | tr '[:lower:]' '[:upper:]')
+# Usable in variable and macro names: h89-cpm -> H89_CPM
+PLATFORM_UC := $(shell echo "$(PLATFORM)" | tr '[:lower:]-' '[:upper:]_')
 $(info Building for PLATFORM=$(PLATFORM))
 
 MEKKO_CONFIG ?= Makefile
@@ -29,7 +30,10 @@ include $(CURDIR)/$(MEKKO_CONFIG)
 # Define GIT_VERSION to be used in macro define to CFLAGS, includes
 # tag if available, short commit hash, appends '*' if changes haven't
 # been commited
-GIT_VERSION := $(shell git rev-parse --short HEAD)$(shell git status --porcelain | grep -q '^[ MADRCU]' && echo '*')
+_git_version := $(shell git rev-parse --short HEAD 2>/dev/null)
+ifneq ($(_git_version),)
+GIT_VERSION := $(_git_version)$(shell git status --porcelain 2>/dev/null | grep -q '^[ MADRCU]' && echo '*')
+endif
 
 # A pass with MEKKO_PRODUCT set builds that one product, without it the
 # pass builds the disk from all of PRODUCTS
@@ -100,13 +104,20 @@ DISK_BOOT_EXEC ?= $(firstword $(DISK_EXECUTABLES))
 # PLATFORM_COMBOS is a flat list of entries like "dragon+=coco"
 # $1 = the platform to expand
 comma := ,
-define get_combos
+define get_direct_combos
 $(foreach e,$(PLATFORM_COMBOS), \
   $(if $(filter $1+=%,$(e)), \
     $(subst $(comma), ,$(lastword $(subst +=, ,$(e)))) \
   ) \
 )
 endef
+
+# Combos cascade: "h89-cpm+=h89 h89+=fujiversal" gives h89-cpm both.
+# $2 = platforms already collected, so cycles and repeats are skipped.
+_combos_walk = $(foreach c,$(call get_direct_combos,$1), \
+  $(if $(filter $c,$2),,$c $(call _combos_walk,$c,$2 $1 $c)))
+_uniq = $(if $1,$(firstword $1) $(call _uniq,$(filter-out $(firstword $1),$1)))
+get_combos = $(call _uniq,$(filter-out $1,$(strip $(call _combos_walk,$1,$1))))
 
 # Expands patterns with %PLATFORM% to the platform + its combos
 expand_platform_pattern = \
@@ -189,7 +200,7 @@ vpath %.pas $(SRC_DIRS_EXPANDED)
 .PHONY: clean debug r2r $(PLATFORM)/r2r disk $(PLATFORM)/disk $(PLATFORM)/release
 
 clean::
-	rm -rf $(OBJ_DIR) $(CACHE_PLATFORM) $(R2R_PD)
+	rm -rf $(OBJ_DIR) $(CACHE_PLATFORM) $(R2R_PD) $(RELEASE_DIR)
 
 debug::
 	echo 'What should debug target do?'
@@ -249,12 +260,17 @@ $(PLATFORM)/library-post::
 RELEASE_INCLUDES ?= $(foreach dir,$(INCLUDE_DIRS),$(wildcard $(dir)/*.h $(dir)/*.inc))
 RELEASE_INCLUDES += $(wildcard Changelog.md)
 RELEASE_VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo dev)
-RELEASE_ZIP = $(RELEASE_DIR)/$(PRODUCT)-$(RELEASE_VERSION)-$(PLATFORM).zip
+PRODUCT_DASH = $(subst .,-,$(PRODUCT))
+VERSION_CLEAN = $(patsubst v%,%,$(RELEASE_VERSION))
+RELEASE_ZIP = $(RELEASE_DIR)/$(PRODUCT_DASH)-$(PLATFORM)-$(VERSION_CLEAN).zip
+RELEASE_LIB = $(RELEASE_DIR)/$(PRODUCT_BASE)-$(PLATFORM)-$(VERSION_CLEAN).lib
 
 $(PLATFORM)/release: $(RELEASE_ZIP)
 $(RELEASE_ZIP):: $(LIBRARY)
 	$(MKDIR_P) $(RELEASE_DIR)
-	zip -j $@ $(RELEASE_INCLUDES) $(BUILD_LIB)
+	cp $(BUILD_LIB) $(RELEASE_LIB)
+	zip -j $@ $(RELEASE_INCLUDES) $(RELEASE_LIB)
+	rm $(RELEASE_LIB)
 
 # include autodeps
 DEPS := $(OBJS:.o=.d)
