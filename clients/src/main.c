@@ -424,7 +424,7 @@ void display_list(int8_t old_selected) {
   {
     gotoxy(FOOTER_X,BOTTOM_PANEL_Y);
     if (in_game) {
-      cputs("Select server" ACTION_VERB " ");
+      cputs("Select table" ACTION_VERB " ");
       revers(1); cputs(BOOT_KEY); revers(0);
       cputs(" to " BOOT_WORD);
     } else {
@@ -465,7 +465,7 @@ void refresh_list(bool clearScreen) {
     lobby.count=0;
     page_size = MAX_PAGE_SIZE - (qa_mode ? 3 : 0);
 
-    panel_status(1,in_game ? "Retrieving Servers.." : "Retrieving Games..");
+    panel_status(1,in_game ? "Retrieving Tables.." : "Retrieving Games..");
 
     lobby_url(false);
     strcat(buf, "&pagesize=");
@@ -502,7 +502,7 @@ void refresh_list(bool clearScreen) {
       }
     } else if (api_read_result < 3 + (in_game ? sizeof(ServerDetails) : sizeof(GameDetails)) || lobby.count == 0 || lobby.count > page_size) {
       if (attempt) {
-        panel_status(1,in_game ? "No servers are online." : "No games are online.");
+        panel_status(1,in_game ? "No tables available." : "No games are online.");
       }
       lobby.count = 0;
     } else {
