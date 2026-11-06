@@ -11,7 +11,7 @@
 #include "apple2/vars.h"
 #include "c64/vars.h"
 #include "coco/vars.h"
-//#include "adam/vars.h"
+#include "adam/vars.h"
 
 
 

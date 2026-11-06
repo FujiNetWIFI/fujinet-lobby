@@ -6,8 +6,6 @@
  * @license gpl v. 3
  */
 
-#ifndef BUILD_ADAM
-
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -16,6 +14,12 @@
 
 #include <fujinet-fuji.h>
 #include <fujinet-network.h>
+
+#ifdef __ADAM__
+#include <eos.h>
+#include <smartkeys.h>
+#include <video/tms99x8.h>
+#endif
 
 #include "platform.h"
 #include "io.h"
@@ -92,6 +96,21 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
   #define BOOT_WORD "play"
 #endif
 
+#ifdef __ADAM__
+  #define PLATFORM "adam"
+  #define ACTION_VERB ", press"
+  #define BOOT_KEY "RETURN"
+  #define BOOT_WORD "play"
+  #undef SCREEN_WIDTH
+  #define SCREEN_WIDTH 32
+  #define CH_ESC 0x1B
+  #undef COLD_BOOT
+  #define COLD_BOOT eos_init()
+  // GRAPHICS II attribute bytes, (fg << 4) | bg
+  #define HEADER_ATTR   0xFD   /* white on magenta */
+  #define BACKDROP_ATTR 0x17   /* black on cyan, CONFIG's backdrop */
+#endif
+
 #ifdef BUILD_MSDOS
   #define PLATFORM "msdos"
   #define ACTION_VERB ", press"
@@ -129,6 +148,13 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
 #define cputsxy(x,y,s) do { gotoxy(x,y); cputs(s); } while (0)
 #define cputcxy(x,y,c) do { gotoxy(x,y); cputc(c); } while (0)
 #define cclearxy(x,y,c) do { gotoxy(x,y); cclear(c); } while (0)
+
+// CONFIG draws the Adam's title row white on dark blue over black-on-white content
+#ifdef __ADAM__
+  #define TITLE_COLOR(on) adam_set_normal((on) ? WHITE : BLACK, (on) ? BLUE : WHITE)
+#else
+  #define TITLE_COLOR(on)
+#endif
 
 char username[66];
 
@@ -199,6 +225,71 @@ void pause(void) {
   cgetc();
 }
 
+#ifdef __ADAM__
+// The Adam's bottom panel is the SmartKeys strip. smartkeys_status() redraws
+// the whole status area from one string, so the text so far is kept here.
+static char panel_buf[96];
+
+static void panel_add(const char *msg)
+{
+  char *d = panel_buf + strlen(panel_buf);
+
+  // smartkeys_puts() takes \n but would draw \r as a glyph
+  while (*msg && (d - panel_buf) < (int)sizeof(panel_buf) - 1) {
+    if (*msg != '\r')
+      *d++ = *msg;
+    msg++;
+  }
+  *d = 0;
+  smartkeys_status(panel_buf);
+}
+#endif
+
+void panel_clear(void)
+{
+#ifdef __ADAM__
+  panel_buf[0] = 0;
+  // smartkeys_status() never erases; redisplaying with no keycaps does
+  smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
+#else
+  CLEAR_BOTTOM_PANEL;
+#endif
+}
+
+/// @brief Clear the panel and write msg on its row (the Adam's status area has no rows)
+void panel_status(uint8_t row, const char *msg)
+{
+  panel_clear();
+#ifdef __ADAM__
+  (void)row;
+  panel_add("  ");
+  panel_add(msg);
+#else
+  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+row,msg);
+#endif
+}
+
+/// @brief Write msg on another panel row without clearing
+void panel_line(uint8_t row, const char *msg)
+{
+#ifdef __ADAM__
+  (void)row;
+  panel_add("\n  ");
+  panel_add(msg);
+#else
+  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+row,msg);
+#endif
+}
+
+void panel_append(const char *msg)
+{
+#ifdef __ADAM__
+  panel_add(msg);
+#else
+  cputs(msg);
+#endif
+}
+
 /**
  * @brief The initial banner
  */
@@ -208,6 +299,9 @@ void banner(void) {
 
 #if defined(BUILD_MSDOS)
   draw_box(0, 0, SCREEN_WIDTH, BOTTOM_PANEL_Y);
+#elif defined(__ADAM__)
+  TITLE_COLOR(1);
+  cclearxy(0,0,SCREEN_WIDTH);
 #elif defined(FRAMED)
   draw_frame(qa_mode ? "## QA MODE ##" : "#FUJINET GAME LOBBY", username, BOTTOM_PANEL_Y-1);
 #endif
@@ -218,6 +312,7 @@ void banner(void) {
     cputs("## QA MODE ##");
   else
     cputs("#FUJINET GAME LOBBY");
+  TITLE_COLOR(0);
 #endif
 }
 
@@ -262,6 +357,9 @@ void display_list(int8_t old_selected) {
 #ifdef FRAMED
     setBoldMode(FALSE);
 #endif
+#ifdef __ADAM__
+    vdp_vfill(MODE2_ATTR + ((unsigned int)(LIST_Y-2) << 8), HEADER_ATTR, 256);
+#endif
   }
 
   for (j=0;j<lobby.count;j++)
@@ -303,6 +401,18 @@ void display_list(int8_t old_selected) {
   for (;j<page_size;j++)
     cclearxy(LIST_X,LIST_Y+j,LIST_W);
 
+#ifdef __ADAM__
+  // Rows under the list go back to the backdrop, so the white ends with the list
+  vdp_vfill(MODE2_ATTR + ((unsigned int)(LIST_Y+lobby.count) << 8), BACKDROP_ATTR,
+            (unsigned int)(BOTTOM_PANEL_Y-LIST_Y-lobby.count) << 8);
+
+  // The status area beside keycaps IV-VI is about 128px of proportional font
+  panel_clear();
+  smartkeys_display(NULL,NULL,NULL," REFRESH"," QA MODE",
+                    lobby.count>0 ? (in_game ? "  PLAY" : "  VIEW") : NULL);
+  panel_add("  [R]efresh list  [Q]A\n");
+  panel_add(in_game ? "  [ESC] back  [C]hange name" : "  [C]hange name");
+#else
   CLEAR_BOTTOM_PANEL;
 #if !defined(BUILD_MSDOS) && !defined(FRAMED)
   gotoxy(0,BOTTOM_PANEL_Y-1);
@@ -343,6 +453,7 @@ void display_list(int8_t old_selected) {
   gotoxy(SCREEN_WIDTH-11-LIST_X-FOOTER_X,screen_height-1);
   revers(1); cputs("C"); revers(0);
   cputs("hange name");
+#endif
 }
 
 void refresh_list(bool clearScreen) {
@@ -354,8 +465,7 @@ void refresh_list(bool clearScreen) {
     lobby.count=0;
     page_size = MAX_PAGE_SIZE - (qa_mode ? 3 : 0);
 
-    CLEAR_BOTTOM_PANEL;
-    cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,in_game ? "Retrieving Servers.." : "Retrieving Games..");
+    panel_status(1,in_game ? "Retrieving Servers.." : "Retrieving Games..");
 
     lobby_url(false);
     strcat(buf, "&pagesize=");
@@ -376,21 +486,23 @@ void refresh_list(bool clearScreen) {
     }
 
 #ifndef FRAMED
+    TITLE_COLOR(1);
     cputsxy(SCREEN_WIDTH-LIST_X-strlen(username),0, username);
+    TITLE_COLOR(0);
 #endif
 
     if (api_read_result<0) {
       if (attempt) {
-        cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,"Could not query Lobby! Error: ");
+        panel_status(1,"Could not query Lobby! Error: ");
         itoa(api_read_result, buf, 10);
-        cputs(buf);
+        panel_append(buf);
       } else {
          // Possibly reached end of list and didn't read due to 404, reset page to 0
           page=0;
       }
     } else if (api_read_result < 3 + (in_game ? sizeof(ServerDetails) : sizeof(GameDetails)) || lobby.count == 0 || lobby.count > page_size) {
       if (attempt) {
-        cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,in_game ? "No servers are online." : "No games are online.");
+        panel_status(1,in_game ? "No servers are online." : "No games are online.");
       }
       lobby.count = 0;
     } else {
@@ -456,8 +568,7 @@ void mount() {
     return;
   } 
 
-  CLEAR_BOTTOM_PANEL;
-  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,"Retrieving Server..");
+  panel_status(1,"Retrieving Server..");
 
   lobby_url(true);
   network_open(buf, OPEN_MODE_HTTP_GET_H, OPEN_TRANS_NONE);
@@ -465,10 +576,9 @@ void mount() {
   network_close(buf);
 
   if (api_read_result < 0 || api_read_result < sizeof(InstanceDetails)) {
-    CLEAR_BOTTOM_PANEL;
-    cputsxy(FOOTER_X,BOTTOM_PANEL_Y,"ERROR: Could not get server: ");
+    panel_status(0,"ERROR: Could not get server: ");
     itoa(api_read_result, buf, 10);
-    cputs(buf);
+    panel_append(buf);
     pause();
     refresh_list(false);
     return;
@@ -494,10 +604,8 @@ void mount() {
   loading_name[i] = 0;
 #endif
 
-  CLEAR_BOTTOM_PANEL;
-
-  cputsxy(FOOTER_X,BOTTOM_PANEL_Y, MOUNTING);
-  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1, buf);
+  panel_status(0, MOUNTING);
+  panel_line(1, buf);
 
   // Get the host and filename
   if (filename = strstr(client_path,"/")) {
@@ -508,8 +616,7 @@ void mount() {
   host = strtok(client_path,"/");
 
   if (filename == NULL || host == NULL) {
-    CLEAR_BOTTOM_PANEL;
-    cputsxy(FOOTER_X,BOTTOM_PANEL_Y,"ERROR: Invalid client file");
+    panel_status(0,"ERROR: Invalid client file");
     pause();
     refresh_list(false);
     return;
@@ -636,7 +743,17 @@ void select_item() {
 void event_loop() {
   while (true) { 
     readCommonInput();
-    
+
+#ifdef __ADAM__
+    // SmartKeys IV-VI do what display_list() labels them
+    if (input.key == KEY_SMART_IV)
+      input.key = 'r';
+    else if (input.key == KEY_SMART_V)
+      input.key = 'q';
+    else if (input.key == KEY_SMART_VI)
+      input.trigger = true;
+#endif
+
     switch (input.key) {
 #ifdef FRAMED
       case 's':
@@ -729,5 +846,3 @@ void main(void)
   refresh_list(true);
   event_loop();
 }
-
-#endif /* BUILD_ADAM */
