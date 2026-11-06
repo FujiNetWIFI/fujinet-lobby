@@ -4,11 +4,9 @@ import os, sys
 import re
 import zipfile
 import urllib.request
-import json
 import subprocess
 
 FUJINET_REPO = "FujiNetWIFI/fujinet-lib"
-GITHUB_API = "https://api.github.com/repos"
 GITHUB_URL = "https://github.com"
 CACHE_DIR = "_cache"
 FUJINET_CACHE_DIR = os.path.join(CACHE_DIR, "fujinet-lib")
@@ -118,9 +116,13 @@ class LibLocator:
     if not self.MV.FUJINET_LIB_DIR:
       self.getDirectory()
 
-    if not self.MV.FUJINET_LIB_FILE \
-       and (not self.MV.FUJINET_LIB_ZIP or not os.path.exists(self.MV.FUJINET_LIB_ZIP)):
-      self.downloadZip()
+    if not self.MV.FUJINET_LIB_FILE:
+      if not self.MV.FUJINET_LIB_ZIP or not os.path.exists(self.MV.FUJINET_LIB_ZIP):
+        self.downloadZip()
+      # downloadZip() leaves no zip when the library is already in the cache
+      if self.MV.FUJINET_LIB_ZIP and os.path.exists(self.MV.FUJINET_LIB_ZIP):
+        with zipfile.ZipFile(self.MV.FUJINET_LIB_ZIP, "r") as zf:
+          zf.extractall(self.MV.FUJINET_LIB_DIR)
 
     if not self.MV.FUJINET_LIB_INCLUDE:
       self.getInclude()
@@ -208,19 +210,17 @@ class LibLocator:
         exit(0)
       #error_exit(f"No library found for \"{self.PLATFORM}\"")
       if not self.MV.FUJINET_LIB_FILE:
-        raise ValueError
+        raise ValueError("No library found for", self.PLATFORM)
       return
 
     # No version was specified, so any version is fine
     if self.MV.FUJINET_LIB_VERSION:
       return
 
-    latest_url = f"{GITHUB_API}/{FUJINET_REPO}/releases/latest"
+    latest_url = f"{GITHUB_URL}/{FUJINET_REPO}/releases/latest"
     with urllib.request.urlopen(latest_url) as response:
-      response = response.read().decode("UTF-8")
-      release_info = json.loads(response)
+      latest_version = response.geturl().rsplit("/", 1)[-1]
 
-    latest_version = release_info.get("tag_name") or release_info.get("name")
     if not latest_version:
       raise ValueError("Can't find version")
 
@@ -266,9 +266,6 @@ class LibLocator:
             urllib.request.urlretrieve(release_url, self.MV.FUJINET_LIB_ZIP)
           except:
             continue
-
-        with zipfile.ZipFile(self.MV.FUJINET_LIB_ZIP, "r") as zf:
-          zf.extractall(self.MV.FUJINET_LIB_DIR)
 
         return
 
@@ -366,7 +363,16 @@ class LibLocator:
       if platform not in comboDict:
         comboDict[platform] = []
       comboDict[platform].extend(others)
-    return comboDict
+
+    # Combos cascade: "h89-cpm+=h89 h89+=fujiversal" gives h89-cpm both.
+    def expand(platform, found):
+      for c in comboDict.get(platform, []):
+        if c not in found:
+          found.append(c)
+          expand(c, found)
+      return found
+
+    return {p: [c for c in expand(p, [p]) if c != p] for p in comboDict}
 
 # Print errors to stderr so that `make` doesn't try to interpret them in `$(eval)`
 def error_exit(*args):
@@ -374,7 +380,7 @@ def error_exit(*args):
   exit(1)
 
 def main():
-  global CACHE_DIR, FUJINET_CACHE_DIR
+  global CACHE_DIR, FUJINET_CACHE_DIR, FUJINET_REPO
 
   args = build_argparser().parse_args()
 
@@ -391,12 +397,21 @@ def main():
   if not FUJINET_LIB:
     FUJINET_LIB = os.getenv("FUJINET_LIB")
 
+  repo = os.getenv("FUJINET_REPO")
+  if repo:
+    FUJINET_REPO = repo
+
   env_cache_dir = os.getenv("CACHE_DIR")
   if env_cache_dir:
     CACHE_DIR = env_cache_dir
     FUJINET_CACHE_DIR = os.path.join(CACHE_DIR, os.path.basename(FUJINET_CACHE_DIR))
 
   fujinetLib = LibLocator(FUJINET_LIB, PLATFORM, PLATFORM_COMBOS, args.skip_if_missing)
+  # fujinet-version.h defines FNLIB_VERSION_FULL itself
+  if os.path.exists(os.path.join(fujinetLib.MV.FUJINET_LIB_INCLUDE, "fujinet-version.h")):
+    fujinetLib.MV.FUJINET_LIB_VERSION = ""
+  elif fujinetLib.MV.FUJINET_LIB_VERSION:
+    fujinetLib.MV.FUJINET_LIB_VERSION = "v" + fujinetLib.MV.FUJINET_LIB_VERSION
   fujinetLib.printMakeVariables()
 
   return
