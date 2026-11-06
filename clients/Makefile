@@ -30,6 +30,9 @@ CFLAGS = -DBUILD_$(PLATFORM_UC)
 # - a URL to a git repo
 # - empty which will use whatever is the latest
 # - undefined, no fujinet-lib will be used
+#
+# The QR code screen calls fuji_qrcode_v1(), which no fujinet-lib has; the
+# library's QR API is fuji_qrcode_input/encode/length/output instead.
 FUJINET_LIB = 4.10.0
 
 # msdos support only exists in lib-experimental. mekkogx/common.mk sets
