@@ -1,0 +1,20 @@
+{
+ "game": "5 Card Stud",
+ "appkey": 1,
+ "server": "Basement",
+ "region": "us",
+ "serverurl": "http://127.0.0.1:9/?table=basement",
+ "status": "online",
+ "maxplayers": 8,
+ "curplayers": 0,
+ "clients": [
+  {
+   "platform": "o2",
+   "url": "tnfs://SD/apps/5card.bin"
+  },
+  {
+   "platform": "atari",
+   "url": "tnfs://ec.tnfs.io/atari/5card.xex"
+  }
+ ]
+}

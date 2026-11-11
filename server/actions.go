@@ -8,6 +8,7 @@ import (
 	"html"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -129,6 +130,189 @@ func parseBinFormat(v string) int {
 		return BinFormatV2
 	default:
 		return 0
+	}
+}
+
+// Paging for the games endpoints, using the same page/offset/pagesize fields as
+// /view. Unlike /view, everything is returned when no pagesize is sent:
+// Pagesize is -1, which SQLite takes as "no limit".
+type pagingFormData struct {
+	Pagesize int
+	Offset   int // zero based index of the first entry returned
+}
+
+func parsePagingForm(c *gin.Context) pagingFormData {
+
+	paging := pagingFormData{Pagesize: -1}
+
+	if pagesize := Atoi(c.Query("pagesize"), 0); pagesize > 0 {
+		paging.Pagesize = pagesize
+
+		if page := Atoi(c.Query("page"), 0); page > 0 {
+			paging.Offset = pagesize * page
+		}
+	}
+
+	// offset wins over page, as in /view
+	if offset := Atoi(c.Query("offset"), 0); offset > 0 {
+		paging.Offset = offset
+	}
+
+	return paging
+}
+
+// send an aggregated list of the game types: server count and players online
+func ShowGamesSummary(c *gin.Context) {
+
+	platform := c.Query("platform")
+
+	if len(platform) == 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest,
+			gin.H{"success": false, "message": "you need to submit a platform"})
+
+		return
+	}
+
+	paging := parsePagingForm(c)
+
+	summary, err := txGameSummaryGetBy(platform, paging.Pagesize, paging.Offset)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError,
+			gin.H{"success": false,
+				"message": "Database transaction issue",
+				"errors":  []string{err.Error()}})
+
+		return
+	}
+
+	if len(summary) == 0 {
+		c.AbortWithStatusJSON(http.StatusNotFound,
+			gin.H{"success": false,
+				"message": "No games available"})
+
+		return
+	}
+
+	if parseBinFormat(c.Query("bin")) > 0 {
+		buf := []byte{byte(min(len(summary), 255)), 0, 0} // count, then 2 reserved bytes
+
+		for _, game := range summary {
+			buf = game.appendAsBinary(buf)
+		}
+
+		c.Data(http.StatusOK, "application/octet-stream", buf)
+	} else {
+		c.JSON(http.StatusOK, summary)
+	}
+}
+
+// send the servers of a single game type (its appkey): name and player slots
+func ShowGamesList(c *gin.Context) {
+
+	platform := c.Query("platform")
+
+	if len(platform) == 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest,
+			gin.H{"success": false, "message": "you need to submit a platform"})
+
+		return
+	}
+
+	game := Atoi(c.Param("game"), 0)
+
+	if game < 1 || game > 255 {
+		c.AbortWithStatusJSON(http.StatusBadRequest,
+			gin.H{"success": false, "message": "game must be a number from 1 to 255"})
+
+		return
+	}
+
+	paging := parsePagingForm(c)
+
+	servers, err := txGameServerListGetBy(platform, game, paging.Pagesize, paging.Offset)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError,
+			gin.H{"success": false,
+				"message": "Database transaction issue",
+				"errors":  []string{err.Error()}})
+
+		return
+	}
+
+	if len(servers) == 0 {
+		c.AbortWithStatusJSON(http.StatusNotFound,
+			gin.H{"success": false,
+				"message": "No servers available for game " + strconv.Itoa(game)})
+
+		return
+	}
+
+	if parseBinFormat(c.Query("bin")) > 0 {
+		buf := []byte{byte(min(len(servers), 255)), 0, 0} // count, then 2 reserved bytes
+
+		for _, server := range servers {
+			buf = server.appendAsBinary(buf)
+		}
+
+		c.Data(http.StatusOK, "application/octet-stream", buf)
+	} else {
+		c.JSON(http.StatusOK, servers)
+	}
+}
+
+// send the server and client urls to join a game on a platform, as published by the server with the given id
+func ShowGamesInstance(c *gin.Context) {
+
+	game := Atoi(c.Param("game"), 0)
+	platform := c.Query("platform")
+	id := Atoi(c.Param("server"), 0)
+
+	if len(platform) == 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest,
+			gin.H{"success": false, "message": "you need to submit a platform"})
+
+		return
+	}
+
+	if game < 1 || game > 255 {
+		c.AbortWithStatusJSON(http.StatusBadRequest,
+			gin.H{"success": false, "message": "game must be a number from 1 to 255"})
+
+		return
+	}
+
+	if id < 1 {
+		c.AbortWithStatusJSON(http.StatusBadRequest,
+			gin.H{"success": false, "message": "server must be a server id from /games/" + strconv.Itoa(game)})
+
+		return
+	}
+
+	instance, found, err := txGameInstanceGetBy(platform, game, id)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError,
+			gin.H{"success": false,
+				"message": "Database transaction issue",
+				"errors":  []string{err.Error()}})
+
+		return
+	}
+
+	if !found {
+		c.AbortWithStatusJSON(http.StatusNotFound,
+			gin.H{"success": false,
+				"message": "No instance available for server " + strconv.Itoa(id) + " on " + platform})
+
+		return
+	}
+
+	if parseBinFormat(c.Query("bin")) > 0 {
+		c.Data(http.StatusOK, "application/octet-stream", instance.appendAsBinary(nil))
+	} else {
+		c.JSON(http.StatusOK, instance)
 	}
 }
 
@@ -289,8 +473,31 @@ func UpsertServer(c *gin.Context) {
 		return
 	}
 
+	// An appkey identifies one game type: refuse a server that reuses one
+	// already registered to a different game, most likely by mistake. The
+	// match is exact, case included, since the game list groups by exact name.
+	registeredGame, found, err := txGameNameGetByAppkey(server.Appkey, server.Serverurl)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError,
+			gin.H{"success": false,
+				"message": "Database transaction issue",
+				"errors":  []string{err.Error()}})
+		return
+	}
+
+	if found && registeredGame != server.Game {
+		c.AbortWithStatusJSON(http.StatusBadRequest,
+			gin.H{"success": false,
+				"message": "VALIDATEERR - Appkey belongs to another game",
+				"errors": []string{fmt.Sprintf("appkey %d is registered to game '%s', not '%s'. Use exactly '%s' (case included) as the game name, or register a new appkey for your game at %s",
+					server.Appkey, registeredGame, server.Game, registeredGame, APPKEY_REGISTRY_URL)}})
+		return
+	}
+
 	// Never accepted from a publisher; the lobby assigns it.
 	server.ChatUrl = ""
+	server.ID = 0
 
 	// A chat failure must not stop a game server registering, so this returns
 	// empty rather than an error and the transaction keeps any URL already

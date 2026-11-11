@@ -1,0 +1,15 @@
+# a join: K.C. Munchkin (a classic image): its host already in a slot, its
+# appkey (key 7) its server's URL; it boots
+wait 150
+press right
+wait 100
+press down
+press fire
+wait 20
+screen joining
+expect joining T0 JOINING
+expect joining 2 K.C. MUNCHKI
+expect joining 3 MAZE ONE
+wait 400
+snap kc
+expectfile SD/FujiNet/00010107.key==http://127.0.0.1:9/?table=maze

@@ -1,0 +1,114 @@
+[
+ {
+  "game": "5 Card Stud",
+  "appkey": 1,
+  "server": "Basement",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=basement",
+  "status": "online",
+  "maxplayers": 8,
+  "curplayers": 3,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/5card.bin"
+   }
+  ]
+ },
+ {
+  "game": "5 Card Stud",
+  "appkey": 1,
+  "server": "The Den",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=den",
+  "status": "online",
+  "maxplayers": 8,
+  "curplayers": 2,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/5card.bin"
+   }
+  ]
+ },
+ {
+  "game": "5 Card Stud",
+  "appkey": 1,
+  "server": "AI Room - 4 Bots",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=ai4",
+  "status": "online",
+  "maxplayers": 8,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/5card.bin"
+   }
+  ]
+ },
+ {
+  "game": "Battleship",
+  "appkey": 5,
+  "server": "Harbor",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=harbor",
+  "status": "online",
+  "maxplayers": 2,
+  "curplayers": 1,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/battleship.bin"
+   }
+  ]
+ },
+ {
+  "game": "Battleship",
+  "appkey": 5,
+  "server": "Open Sea",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=sea",
+  "status": "offline",
+  "maxplayers": 2,
+  "curplayers": 0,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/battleship.bin"
+   }
+  ]
+ },
+ {
+  "game": "Fujitzee",
+  "appkey": 4,
+  "server": "Yacht Club",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=yacht",
+  "status": "online",
+  "maxplayers": 4,
+  "curplayers": 2,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/fujitzee.bin"
+   }
+  ]
+ },
+ {
+  "game": "M.U.L.E.",
+  "appkey": 10,
+  "server": "Irata",
+  "region": "us",
+  "serverurl": "http://127.0.0.1:9/?table=irata",
+  "status": "online",
+  "maxplayers": 4,
+  "curplayers": 2,
+  "clients": [
+   {
+    "platform": "o2",
+    "url": "tnfs://SD/apps/mule.bin"
+   }
+  ]
+ }
+]

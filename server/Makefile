@@ -11,6 +11,10 @@ db/lobby.sqlite3: lobby_schema.sql
 	-@rm db/lobby.sqlite3*  2> /dev/null || true
 	sqlite3 -bail db/lobby.sqlite3 < lobby_schema.sql 
 
+# replace the local database with a copy of production
+copy-prod: build
+	./lobbyPersist -copyprod
+
 run:	build
 #	GIN_MODE=release ./lobbyPersist
 	./lobbyPersist
@@ -41,6 +45,7 @@ help:
 	 ·   install-db -- set up sqlite backend\n\
 	 ·   build		-- build the code\n\
 	 ·   run		-- start the server\n\
+	 ·   copy-prod	-- replace the local database with a copy of production\n\
 	 ·   test		-- run code tests\n\
 	 ·   dblist		-- generate db reports\n\
 	 ·   backup		-- backup all directory\n\

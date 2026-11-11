@@ -49,7 +49,7 @@ func TestMain(m *testing.M) {
 var GameServersIn = []string{
 	`{
         "game": "Super Chess",
-        "appkey": 1,
+        "appkey": 3,
         "server": "chess.rogersm.net",
         "serverurl": "http://chess.rogersm.net/server",
         "region": "eu",
@@ -81,7 +81,7 @@ var GameServersIn = []string{
 	}`,
 	`{
         "game": "5 CARD STUD",
-        "appkey": 2,
+        "appkey": 1,
         "region": "us",
         "server": "erichomeserver.com",
         "serverurl": "tcp://thomcorner.com/pokerbots",
@@ -97,7 +97,7 @@ var GameServersIn = []string{
 	}`,
 	`{
         "game": "Battleship",
-        "appkey": 3,
+        "appkey": 2,
         "region": "AP",
         "server": "8bitBattleship.com",
         "serverurl": "https://8bitBattleship.com/battlehuman",
@@ -115,7 +115,7 @@ var GameServersIn = []string{
     }`,
 	`{
         "game": "5 CARD STUD",
-        "appkey": 3,
+        "appkey": 1,
         "region": "AL",
         "server": "erichomeserver.com",
         "serverurl": "tcp://thomcorner.com/server5",
@@ -131,7 +131,7 @@ var GameServersIn = []string{
     }`,
 	`{
         "game": "5 CARD STUD",
-        "appkey": 3,
+        "appkey": 1,
         "region": "VA",
         "server": "thomcorner.com",
         "serverurl": "tcp://thomcorner.com/pokerhuman",
@@ -194,7 +194,7 @@ var GameServersOut = `"[
     },
     {
         "game": "5 CARD STUD",
-        "appkey": 2,
+        "appkey": 1,
         "server": "erichomeserver.com",
         "region": "us",
         "serverurl": "tcp://thomcorner.com/pokerbots",
@@ -222,7 +222,7 @@ var GameServersOut = `"[
     },
     {
         "game": "Battleship",
-        "appkey": 3,
+        "appkey": 2,
         "server": "8bitBattleship.com",
         "region": "au",
         "serverurl": "https://8bitBattleship.com/battlebots",
@@ -274,7 +274,7 @@ var GameServersOut = `"[
     },
     {
         "game": "5 CARD STUD",
-        "appkey": 3,
+        "appkey": 1,
         "server": "erichomeserver.com",
         "region": "all",
         "serverurl": "tcp://thomcorner.com/server5",
@@ -302,8 +302,8 @@ var GameServersOut = `"[
     }
 ]`
 
-var GameServersOutMin = `[{"g":"Battleship","t":3,"u":"https://8bitBattleship.com/battlehuman","c":"https://8bitBattleship.com/specship.xex","s":"8bitBattleship.com","r":"apac","o":1,"m":2,"p":0,"a":0},{"g":"5 CARD STUD","t":2,"u":"tcp://thomcorner.com/pokerbots","c":"tcp://thomcorner.com/clientus/specpoker.xex","s":"erichomeserver.com","r":"us","o":1,"m":8,"p":1,"a":0},{"g":"Battleship","t":2,"u":"https://8bitBattleship.com/battlebots","c":"https://8bitBattleship.com/specship.xex","s":"8bitBattleship.com","r":"au","o":1,"m":2,"p":1,"a":0},{"g":"Super Chess","t":1,"u":"http://chess.rogersm.net/server","c":"http://chess.rogersm.net/speccychess.xex","s":"chess.rogersm.net","r":"eu","o":1,"m":2,"p":1,"a":0},{"g":"5 CARD STUD","t":3,"u":"tcp://thomcorner.com/server5","c":"tcp://thomcorner.com/specpoker.xex","s":"erichomeserver.com","r":"all","o":0,"m":3,"p":0,"a":0}]`
-var GameServersOutMinAppKey2 = `[{"g":"Battleship","t":2,"u":"https://8bitBattleship.com/battlebots","c":"https://8bitBattleship.com/specship.xex","s":"8bitBattleship.com","r":"au","o":1,"m":2,"p":1,"a":0},{"g":"5 CARD STUD","t":2,"u":"tcp://thomcorner.com/pokerbots","c":"tcp://thomcorner.com/clientus/specpoker.xex","s":"erichomeserver.com","r":"us","o":1,"m":8,"p":1,"a":0}]`
+var GameServersOutMin = `[{"g":"Battleship","t":2,"u":"https://8bitBattleship.com/battlehuman","c":"https://8bitBattleship.com/specship.xex","s":"8bitBattleship.com","r":"apac","o":1,"m":2,"p":0,"a":0},{"g":"5 CARD STUD","t":1,"u":"tcp://thomcorner.com/pokerbots","c":"tcp://thomcorner.com/clientus/specpoker.xex","s":"erichomeserver.com","r":"us","o":1,"m":8,"p":1,"a":0},{"g":"Battleship","t":2,"u":"https://8bitBattleship.com/battlebots","c":"https://8bitBattleship.com/specship.xex","s":"8bitBattleship.com","r":"au","o":1,"m":2,"p":1,"a":0},{"g":"Super Chess","t":3,"u":"http://chess.rogersm.net/server","c":"http://chess.rogersm.net/speccychess.xex","s":"chess.rogersm.net","r":"eu","o":1,"m":2,"p":1,"a":0},{"g":"5 CARD STUD","t":1,"u":"tcp://thomcorner.com/server5","c":"tcp://thomcorner.com/specpoker.xex","s":"erichomeserver.com","r":"all","o":0,"m":3,"p":0,"a":0}]`
+var GameServersOutMinAppKey1 = `[{"g":"5 CARD STUD","t":1,"u":"tcp://thomcorner.com/pokerbots","c":"tcp://thomcorner.com/clientus/specpoker.xex","s":"erichomeserver.com","r":"us","o":1,"m":8,"p":1,"a":0},{"g":"5 CARD STUD","t":1,"u":"tcp://thomcorner.com/server5","c":"tcp://thomcorner.com/specpoker.xex","s":"erichomeserver.com","r":"AL","o":0,"m":3,"p":0,"a":0}]`
 
 func setupRouter() *gin.Engine {
 
@@ -311,6 +311,9 @@ func setupRouter() *gin.Engine {
 
 	router.GET("/viewFull", ShowServers)
 	router.GET("/view", ShowServersMinimised)
+	router.GET("/games", ShowGamesSummary)
+	router.GET("/games/:game", ShowGamesList)
+	router.GET("/games/:game/:server", ShowGamesInstance)
 	router.POST("/server", UpsertServer)
 	router.GET("/version", ShowStatus)
 
@@ -497,7 +500,7 @@ func TestVersion(t *testing.T) {
 func privateAddressServer(serverurl string, clienturl string) string {
 	return `{
         "game": "Test Game",
-        "appkey": 1,
+        "appkey": 199,
         "server": "lanbox",
         "region": "us",
         "serverurl": "` + serverurl + `",
@@ -651,13 +654,181 @@ func TestViewInsertAndRetrieveServerAppId(t *testing.T) {
 
 	w = httptest.NewRecorder()
 	w.Header().Add("Content-Type", "application/json")
-	req, _ = http.NewRequest("GET", "/view?platform=spectrum&appkey=2", nil)
+	req, _ = http.NewRequest("GET", "/view?platform=spectrum&appkey=1", nil)
 	ROUTER.ServeHTTP(w, req)
 
-	if errors := assertHTTPAnswerJSON(w, 200, GameServersOutMinAppKey2); errors != nil {
+	if errors := assertHTTPAnswerJSON(w, 200, GameServersOutMinAppKey1); errors != nil {
 		for _, err := range errors {
 			t.Errorf("%s %s %s", req.Method, req.URL.Path, err)
 		}
 	}
 
+}
+
+func getPath(path string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", path, nil)
+	ROUTER.ServeHTTP(w, req)
+	return w
+}
+
+func TestGamesSummaryAndList(t *testing.T) {
+
+	for _, ServerJson := range GameServersIn {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/server", bytes.NewBuffer([]byte(ServerJson)))
+		ROUTER.ServeHTTP(w, req)
+		if w.Code != 201 {
+			t.Fatalf("unable to insert test server: HTTP %d", w.Code)
+		}
+	}
+
+	cases := []struct {
+		path string
+		code int
+		body string
+	}{
+		{"/games?platform=spectrum", 200, `[{"t":1,"g":"5 CARD STUD","p":1},{"t":2,"g":"Battleship","p":1},{"t":3,"g":"Super Chess","p":1}]`},
+		{"/games?platform=spectrum&pagesize=1&offset=1", 200, `[{"t":2,"g":"Battleship","p":1}]`},
+		{"/games?platform=spectrum&pagesize=1&page=1", 200, `[{"t":2,"g":"Battleship","p":1}]`},
+		{"/games?platform=NoPlatform", 404, `{"message":"No games available","success":false}`},
+		{"/games", 400, `{"message":"you need to submit a platform","success":false}`},
+		{"/games/2", 400, `{"message":"you need to submit a platform","success":false}`},
+		{"/games/0?platform=spectrum", 400, `{"message":"game must be a number from 1 to 255","success":false}`},
+		{"/games/battleship?platform=spectrum", 400, `{"message":"game must be a number from 1 to 255","success":false}`},
+		{"/games/200?platform=spectrum", 404, `{"message":"No servers available for game 200","success":false}`},
+		{"/games/2?platform=spectrum", 200, `[{"i":1,"s":"8bitBattleship.com","m":2,"p":1},{"i":2,"s":"8bitBattleship.com","m":2,"p":0}]`},
+		{"/games/2/1?platform=spectrum", 200, `{"u":"https://8bitBattleship.com/battlebots","c":"https://8bitBattleship.com/specship.xex"}`},
+		{"/games/2/1", 400, `{"message":"you need to submit a platform","success":false}`},
+		{"/games/0/1?platform=spectrum", 400, `{"message":"game must be a number from 1 to 255","success":false}`},
+		{"/games/1/9?platform=zx81", 404, `{"message":"No instance available for server 9 on zx81","success":false}`},
+		{"/games/2/1?platform=lynx", 404, `{"message":"No instance available for server 1 on lynx","success":false}`},
+		{"/games/2/2?platform=spectrum", 200, `{"u":"https://8bitBattleship.com/battlehuman","c":"https://8bitBattleship.com/specship.xex"}`},
+		{"/games/2/8bitBattleship.com?platform=spectrum", 400, `{"message":"server must be a server id from /games/2","success":false}`},
+	}
+
+	for _, tc := range cases {
+		w := getPath(tc.path)
+		for _, err := range assertHTTPAnswerJSON(w, tc.code, tc.body) {
+			t.Errorf("GET %s %s", tc.path, err)
+		}
+	}
+
+	// two games sharing an appkey must be counted apart. POST /server now refuses
+	// that, but rows from before the check can still hold it, so insert the second
+	// one directly.
+	body := `{"game":"Chess A","appkey":9,"server":"s","region":"us","serverurl":"http://x/Chess A","status":"online","maxplayers":4,"curplayers":2,"clients":[{"platform":"zx81","url":"http://x/c.xex"}]}`
+	req, _ := http.NewRequest("POST", "/server", bytes.NewBuffer([]byte(body)))
+	ROUTER.ServeHTTP(httptest.NewRecorder(), req)
+	txGameServerUpsert(GameServer{Game: "Chess B", Appkey: 9, Server: "s", Region: "us", Serverurl: "http://x/Chess B",
+		Status: "online", Maxplayers: 4, Curplayers: 2, Clients: []GameClient{{Platform: "zx81", Url: "http://x/c.xex"}}}, "")
+	for _, err := range assertHTTPAnswerJSON(getPath("/games?platform=zx81"), 200, `[{"t":9,"g":"Chess A","p":2},{"t":9,"g":"Chess B","p":2}]`) {
+		t.Errorf("shared appkey: %s", err)
+	}
+
+	// bin: 3 byte header, then 19 bytes per game
+	w := getPath("/games?platform=spectrum&bin=1")
+	if w.Code != 200 || w.Body.Len() != 3+3*19 || w.Body.Bytes()[0] != 3 {
+		t.Errorf("unexpected binary summary: HTTP %d, %d bytes", w.Code, w.Body.Len())
+	}
+
+	// bin: 3 byte header, then 36 bytes per server
+	w = getPath("/games/2?platform=spectrum&bin=1")
+	if w.Code != 200 || w.Body.Len() != 3+2*36 || w.Body.Bytes()[0] != 2 {
+		t.Errorf("unexpected binary list: HTTP %d, %d bytes", w.Code, w.Body.Len())
+	}
+
+	w = getPath("/games/2/1?platform=spectrum&bin=1")
+	if w.Code != 200 || w.Body.Len() != 130 {
+		t.Errorf("unexpected binary client: HTTP %d, %d bytes", w.Code, w.Body.Len())
+	}
+}
+
+func TestServerIdsAreLowestFreePerGameType(t *testing.T) {
+	mk := func(url string, appkey int) GameServer {
+		return GameServer{Game: "Test Game", Appkey: appkey, Server: "s", Region: "us", Serverurl: url,
+			Status: "online", Maxplayers: 2, Clients: []GameClient{{Platform: "atari", Url: url + "/c"}}}
+	}
+	idOf := func(url string) (id int) {
+		DATABASE.DB.Get(&id, `SELECT id FROM GameServer WHERE serverurl = $1`, url)
+		return id
+	}
+	urls := []string{"http://id-test-a/s", "http://id-test-b/s", "http://id-test-c/s", "http://id-test-d/s", "http://id-test-other/s"}
+	defer func() {
+		for _, u := range urls {
+			txGameServerDelete(u)
+		}
+	}()
+	// appkey 200 is unlikely to clash with fixtures
+	for _, u := range urls[:3] {
+		if err := txGameServerUpsert(mk(u, 200), ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := txGameServerUpsert(mk(urls[4], 201), ""); err != nil {
+		t.Fatal(err)
+	}
+	if a, b, c, o := idOf(urls[0]), idOf(urls[1]), idOf(urls[2]), idOf(urls[4]); a != 1 || b != 2 || c != 3 || o != 1 {
+		t.Fatalf("ids = %d %d %d (other %d), want 1 2 3 (other 1)", a, b, c, o)
+	}
+
+	// re-upsert keeps the id; deleting b frees 2 for the next newcomer
+	txGameServerUpsert(mk(urls[2], 200), "")
+	txGameServerDelete(urls[1])
+	txGameServerUpsert(mk(urls[3], 200), "")
+	if c, d := idOf(urls[2]), idOf(urls[3]); c != 3 || d != 2 {
+		t.Fatalf("c=%d d=%d, want 3 and 2", c, d)
+	}
+
+	// legacy row with no id is numbered by the backfill
+	DATABASE.Exec(`UPDATE GameServer SET id = 0 WHERE serverurl = $1`, urls[0])
+	if err := txGameServerAssignMissingIds(); err != nil {
+		t.Fatal(err)
+	}
+	if a := idOf(urls[0]); a != 1 {
+		t.Fatalf("backfilled id = %d, want 1", a)
+	}
+}
+
+// an appkey belongs to one game: another name under it is refused, the same name is not
+func TestAppkeyOfAnotherGameIsRejected(t *testing.T) {
+	post := func(game, serverurl string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/server", bytes.NewBuffer([]byte(`{"game":"`+game+`","appkey":210,"server":"s","region":"us","serverurl":"`+serverurl+`","status":"online","maxplayers":2,"curplayers":0,"clients":[{"platform":"atari","url":"http://y/c.xex"}]}`)))
+		ROUTER.ServeHTTP(w, req)
+		return w
+	}
+	urls := []string{"http://y/a", "http://y/b", "http://y/c"}
+	defer func() {
+		for _, u := range urls {
+			txGameServerDelete(u)
+		}
+	}()
+
+	if w := post("Reversi", urls[0]); w.Code != 201 {
+		t.Fatalf("first server: HTTP %d %s", w.Code, w.Body.String())
+	}
+
+	// a server alone under its appkey may rename its game
+	if w := post("Reversi II", urls[0]); w.Code != 201 {
+		t.Fatalf("rename: HTTP %d %s", w.Code, w.Body.String())
+	}
+
+	if w := post("Reversi II", urls[1]); w.Code != 201 {
+		t.Fatalf("same game: HTTP %d %s", w.Code, w.Body.String())
+	}
+
+	// the game list groups by exact name, so a different case is another game
+	if w := post("REVERSI ii", urls[2]); w.Code != 400 {
+		t.Fatalf("same game, other case: HTTP %d %s", w.Code, w.Body.String())
+	}
+
+	w := post("Othello", urls[2])
+	if errors := assertHTTPAnswerJSON(w, 400, `{"success":false,
+		"message":"VALIDATEERR - Appkey belongs to another game",
+		"errors":["appkey 210 is registered to game 'Reversi II', not 'Othello'. Use exactly 'Reversi II' (case included) as the game name, or register a new appkey for your game at `+APPKEY_REGISTRY_URL+`"]}`); errors != nil {
+		for _, err := range errors {
+			t.Errorf("POST /server %s", err)
+		}
+	}
 }

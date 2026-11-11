@@ -1,0 +1,44 @@
+# the list: games and their rooms (a Lynx-only room left out), the pages
+# both ways by the stick's sides and past a page's ends, the bar's long
+# name scrolling
+wait 150
+screen p1
+expect p1 T0 LOBBY PLAYER1  1
+expect p1 0 5 CARD STUD
+expect p1 1 BASEMENT 2/8
+expect p1 2 THE DEN  1/8
+expect p1 3 A VERY L 0/8
+expect p1 4 BATTLESHIP
+expect p1 5 HARBOR   1/2
+expect p1 T1 FIRE JOIN ? HELP
+press right
+wait 100
+screen p2
+expect p2 T0 LOBBY PLAYER1  2
+expect p2 0 BATTLESHIP
+expect p2 1 AI-3     0/2
+expect p2 2 K.C. MUNCHKI
+expect p2 3 MAZE ONE 0/2
+expectnot p2 5 LYNX
+press right
+wait 60
+screen last
+expect last T0 LOBBY PLAYER1  2
+press up
+wait 100
+screen up
+expect up T0 LOBBY PLAYER1  1
+expect up 5 HARBOR
+press down
+wait 100
+screen down
+expect down T0 LOBBY PLAYER1  2
+press left
+wait 100
+screen left
+expect left 1 BASEMENT
+press down
+press down
+wait 150
+screen marq
+expectnot marq 3 A VERY L

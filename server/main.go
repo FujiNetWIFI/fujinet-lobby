@@ -41,6 +41,9 @@ var (
 const (
 	VERSION   = "5.5.7"
 	STRINGVER = "fujinet persistent lobby  " + VERSION + "/" + runtime.GOOS + " (c) Roger Sen 2025"
+
+	// where game authors look up the appkey assigned to their game, as linked from doc.html
+	APPKEY_REGISTRY_URL = "https://github.com/FujiNetWIFI/fujinet-firmware/wiki/AppKey-Registry-Page"
 )
 
 //go:embed doc.html
@@ -53,7 +56,8 @@ func main() {
 
 	var srvaddr, chatsrv, chatkey string
 	var evtaddrs, trustedproxies ArrayOfParams
-	var help, version bool
+	var help, version, copyprod bool
+	var produrl string
 
 	flag.StringVar(&srvaddr, "srvaddr", ":8080", "<address:port> for http server")
 	flag.StringVar(&chatsrv, "chatsrv", "", "<url> of the game chat service, e.g. https://q.tnfs.io (empty disables chat rooms)")
@@ -62,6 +66,8 @@ func main() {
 	flag.Var(&trustedproxies, "trustedproxy", "<ip|cidr> of a reverse proxy allowed to set X-Forwarded-For (multiple values accepted)")
 
 	flag.BoolVar(&PRODUCTION, "prod", false, "reject publishes coming from, or advertising, a non-routable address")
+	flag.BoolVar(&copyprod, "copyprod", false, "replace the local database with a copy of production, then exit (local development)")
+	flag.StringVar(&produrl, "produrl", PRODUCTION_VIEWFULL, "<url> of the /viewFull to copy from with -copyprod")
 	flag.BoolVar(&version, "version", false, "show current version")
 	flag.BoolVar(&help, "help", false, "show this help")
 
@@ -82,6 +88,16 @@ func main() {
 	init_scheduler()
 	init_time()
 	init_db()
+
+	if copyprod {
+		if err := copy_production_db(produrl); err != nil {
+			ERROR.Printf("copy of production failed: %s", err)
+			os.Exit(1)
+		}
+
+		return
+	}
+
 	init_html(srvaddr)
 	init_webhook(evtaddrs)
 	init_chat(chatsrv, chatkey)
@@ -94,6 +110,9 @@ func main() {
 	router.GET("/docs", ShowDocs)
 	router.GET("/viewFull", ShowServers)
 	router.GET("/view", ShowServersMinimised)
+	router.GET("/games", ShowGamesSummary)
+	router.GET("/games/:game", ShowGamesList)
+	router.GET("/games/:game/:server", ShowGamesInstance)
 	router.GET("/version", ShowStatus)
 	router.POST("/server", UpsertServer)
 	router.DELETE("/server", DeleteServer)

@@ -1,5 +1,3 @@
-#ifndef BUILD_ADAM
-
 #include <conio.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -142,7 +140,7 @@ void inputField(uint8_t x, uint8_t y, uint8_t max, char* buffer) {
       buffer[--curx]=0;
       cputcxy(x+1+curx,y,' ');
     } else if (
-      curx < max && ((curx>0 && input.key == KEY_SPACEBAR) || (input.key>= 48 && input.key <=57) || (input.key>= 65 && input.key <=90) || (input.key>= 97 && input.key <=122))    // 0-9 A-Z a-z
+      curx < max && ((curx>0 && input.key == KEY_SPACEBAR) || (input.key >= '0' && input.key <= '9') || (input.key >= 'A' && input.key <= 'Z') || (input.key >= 'a' && input.key <= 'z'))
     ) {
 
       buffer[curx]=input.key;
@@ -153,5 +151,3 @@ void inputField(uint8_t x, uint8_t y, uint8_t max, char* buffer) {
     cputc(CHAR_CURSOR);
   }
 }
-
-#endif /* BUILD_ADAM */

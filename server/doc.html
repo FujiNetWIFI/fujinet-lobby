@@ -56,7 +56,7 @@
                   <td>Name of the game to be showed by the game client to the user</td>
                   <td>required<br/>printable ascii characters (regex="^[\x20-\x7E]*$")<br/> 2-16 chars</td></tr>
                 <tr><td>appkey</td>
-                  <td><a href="https://github.com/FujiNetWIFI/fujinet-platformio/wiki/SIO-Command-%24DC-Open-App-Key">Registered id of game</a></td>
+                  <td><a href="https://github.com/FujiNetWIFI/fujinet-firmware/wiki/AppKey-Registry-Page">Registered id of game</a></td>
                   <td>required<br/>integer ⊂ [1, 255]</td></tr>
                 <tr><td>server</td>
                   <td>Name (and version) of the game server used</td>
@@ -94,6 +94,7 @@
             </table>
       </p>
       <p>Any additional fields will be ignored by the server.</p>
+      <p>An appkey identifies a single game. If other servers are already registered with the same <code>appkey</code> under a different <code>game</code> name, the submission is rejected with an HTTP 400. The name must match exactly, case included; otherwise register a new appkey for your game in the <a href="https://github.com/FujiNetWIFI/fujinet-firmware/wiki/AppKey-Registry-Page">AppKey Registry</a>.</p>
       <p>In case of errors, the server will reply with a <code>http status 400</code> and the following json payload
 <pre><code>{
   "success": false,

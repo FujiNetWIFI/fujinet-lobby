@@ -1,0 +1,17 @@
+# the first run: no name (key 0), so the editor asks; one letter is refused,
+# then TESTER is kept, folded to upper case
+wait 150
+screen ask
+expect ask T0 YOUR NAME
+type T
+key ENT
+wait 40
+screen short
+expect short T0 YOUR NAME
+type ESTER
+key ENT
+wait 150
+screen list
+expect list T0 LOBBY TESTER
+expect list 1 BASEMENT 2/8
+expectfile SD/FujiNet/00010100.key==TESTER

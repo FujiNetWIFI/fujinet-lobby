@@ -6,8 +6,6 @@
  * @license gpl v. 3
  */
 
-#ifndef BUILD_ADAM
-
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -17,6 +15,12 @@
 #include <fujinet-fuji.h>
 #include <fujinet-network.h>
 
+#ifdef __ADAM__
+#include <eos.h>
+#include <smartkeys.h>
+#include <video/tms99x8.h>
+#endif
+
 #include "platform.h"
 #include "io.h"
 
@@ -24,12 +28,15 @@
 #define APP_ID     0x01   /* LOBBY    */
 #define KEY_ID     0x00   /* USERNAME */
 
-#define LOBBY_ENDPOINT "N:https://lobby.fujinet.online/view"
-#define LOBBY_QA_ENDPOINT "N:https://qalobby.fujinet.online/view"
-//#define LOBBY_QA_ENDPOINT "N:http://localhost:8080/view"
+#define LOBBY_ENDPOINT "N:https://lobby.fujinet.online/games"
+#define LOBBY_QA_ENDPOINT "N:https://qalobby.fujinet.online/games"
+
+//#define LOBBY_ENDPOINT "N:http://localhost:8080/games"
 
 // Common defines. Undef and redefine for specific platform below
-#define MAX_PAGE_SIZE  (BOTTOM_PANEL_Y-3)
+#define LIST_Y 4 // First row of the list, below its heading and divider
+#define MAX_PAGE_SIZE  (BOTTOM_PANEL_Y-1-LIST_Y)
+#define BACK_KEY "ESC"
 #define SCREEN_WIDTH 40
 #define BOTTOM_PANEL_ROWS 3
 #define PANEL_SPACER "--------"
@@ -67,6 +74,8 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
 #define BOOT_KEY "ENTER"
 #define PLATFORM "coco"
 #define BOOT_WORD "play"
+#undef BACK_KEY
+#define BACK_KEY "BREAK"
 #undef SCREEN_WIDTH
 #define SCREEN_WIDTH 42
 #define FRAMED 1
@@ -85,6 +94,36 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
   #define ACTION_VERB ", press"
   #define BOOT_KEY "RETURN"
   #define BOOT_WORD "play"
+#endif
+
+#ifdef __ADAM__
+  #define PLATFORM "adam"
+  #define ACTION_VERB ", press"
+  #define BOOT_KEY "RETURN"
+  #define BOOT_WORD "play"
+  #undef SCREEN_WIDTH
+  #define SCREEN_WIDTH 32
+  #define CH_ESC 0x1B
+  #undef COLD_BOOT
+  #define COLD_BOOT eos_init()
+  // GRAPHICS II attribute bytes, (fg << 4) | bg
+  #define HEADER_ATTR   0xFD   /* white on magenta */
+  #define BACKDROP_ATTR 0x17   /* black on cyan, CONFIG's backdrop */
+#endif
+
+#ifdef __TRS80M2__
+  #define PLATFORM "model2"
+  #define ACTION_VERB ", press"
+  #define BOOT_KEY "ENTER"
+  #define BOOT_WORD "play"
+  #undef SCREEN_WIDTH
+  #define SCREEN_WIDTH 80
+  #define FRAMED 1
+  #define CH_ESC 0x1B
+  // fuji_set_boot_mode(0) would mount the MS-DOS CONFIG: one RS-232 image
+  #define NO_CONFIG_BOOT
+  #undef COLD_BOOT
+  #define COLD_BOOT quit()
 #endif
 
 #ifdef BUILD_MSDOS
@@ -125,16 +164,27 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
 #define cputcxy(x,y,c) do { gotoxy(x,y); cputc(c); } while (0)
 #define cclearxy(x,y,c) do { gotoxy(x,y); cclear(c); } while (0)
 
+// CONFIG draws the Adam's title row white on dark blue over black-on-white content
+#ifdef __ADAM__
+  #define TITLE_COLOR(on) adam_set_normal((on) ? WHITE : BLACK, (on) ? BLUE : WHITE)
+#else
+  #define TITLE_COLOR(on)
+#endif
+
 char username[66];
 
 char buf[128];         // Temporary buffer use
-char page_offset[128]; // Store offset for each page
-uint8_t offset=0;      // Default to first page of Lobby results
 uint8_t page_size;     // Active page size
 uint8_t qa_mode=0;     // Toggles the lobby endpoint (Prod vs QA)
 uint8_t page=0;        // Current page
 bool more_pages;       // True if should check for more pages
-int8_t selected_server = 0;    // Currently selected server
+int8_t selected = 0;   // Currently selected game or server
+
+bool in_game;          // False when listing games, true when listing one game's servers
+uint8_t game_type;     // Appkey of the game whose servers are listed
+char game_name[17];    // Name of the game whose servers are listed
+uint8_t game_page;     // Games list page and selection to return to
+int8_t game_selected;
 
 uint8_t screen_height;
 
@@ -145,42 +195,118 @@ char loading_name[17];   // Set by mount(), consumed by reboot() in coco/platfor
 #ifdef __WATCOMC__
 #pragma pack(push, 1)
 #endif
-typedef struct { // 189 bytes
+typedef struct { // 19 bytes, /games
   uint8_t game_type;
   char game[17];
+  uint8_t players;
+} GameDetails;
+
+typedef struct { // 36 bytes, /games/{game}
+  uint8_t id;
   char server[33];
+  uint8_t max_players;
+  uint8_t players;
+} ServerDetails;
+
+typedef struct { // 130 bytes, /games/{game}/{server}
   char url[65];
   char client_url[65];
-  char region[3];
-  uint8_t online;
-  uint8_t players;
-  uint8_t max_players;
-  uint16_t ping_age;  // Ignored in client. Also, would need to support different endians in server for binary transfer mode
-} ServerDetails;
+} InstanceDetails;
 #ifdef __WATCOMC__
 #pragma pack(pop)
 #endif
 
 typedef struct {
-  uint8_t server_count;
+  uint8_t count;
   uint8_t reserved_for_future_1;
   uint8_t reserved_for_future_2;
-  ServerDetails servers[23];
+  uint8_t data[23*sizeof(ServerDetails)];
 } LobbyResponse;
 
 LobbyResponse lobby;
 
-void pause(void) { 
+// The records in lobby, depending on which list was read. The join urls have
+// no header, so are read over the whole response.
+#define GAMES    ((GameDetails*)lobby.data)
+#define SERVERS  ((ServerDetails*)lobby.data)
+#define INSTANCE (*(InstanceDetails*)&lobby)
+
+void pause(void) {
   cputs("\r\nPress ");
   revers(1);
   cputs("RETURN");
   revers(0);
   cputs(" to continue.");
   cgetc();
-} 
+}
+
+#ifdef __ADAM__
+// The Adam's bottom panel is the SmartKeys strip. smartkeys_status() redraws
+// the whole status area from one string, so the text so far is kept here.
+static char panel_buf[96];
+
+static void panel_add(const char *msg)
+{
+  char *d = panel_buf + strlen(panel_buf);
+
+  // smartkeys_puts() takes \n but would draw \r as a glyph
+  while (*msg && (d - panel_buf) < (int)sizeof(panel_buf) - 1) {
+    if (*msg != '\r')
+      *d++ = *msg;
+    msg++;
+  }
+  *d = 0;
+  smartkeys_status(panel_buf);
+}
+#endif
+
+void panel_clear(void)
+{
+#ifdef __ADAM__
+  panel_buf[0] = 0;
+  // smartkeys_status() never erases; redisplaying with no keycaps does
+  smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
+#else
+  CLEAR_BOTTOM_PANEL;
+#endif
+}
+
+/// @brief Clear the panel and write msg on its row (the Adam's status area has no rows)
+void panel_status(uint8_t row, const char *msg)
+{
+  panel_clear();
+#ifdef __ADAM__
+  (void)row;
+  panel_add("  ");
+  panel_add(msg);
+#else
+  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+row,msg);
+#endif
+}
+
+/// @brief Write msg on another panel row without clearing
+void panel_line(uint8_t row, const char *msg)
+{
+#ifdef __ADAM__
+  (void)row;
+  panel_add("\n  ");
+  panel_add(msg);
+#else
+  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+row,msg);
+#endif
+}
+
+void panel_append(const char *msg)
+{
+#ifdef __ADAM__
+  panel_add(msg);
+#else
+  cputs(msg);
+#endif
+}
 
 /**
- * @brief The initial banner 
+ * @brief The initial banner
  */
 void banner(void) {
   uint8_t j;
@@ -188,111 +314,120 @@ void banner(void) {
 
 #if defined(BUILD_MSDOS)
   draw_box(0, 0, SCREEN_WIDTH, BOTTOM_PANEL_Y);
+#elif defined(__ADAM__)
+  TITLE_COLOR(1);
+  cclearxy(0,0,SCREEN_WIDTH);
 #elif defined(FRAMED)
   draw_frame(qa_mode ? "## QA MODE ##" : "#FUJINET GAME LOBBY", username, BOTTOM_PANEL_Y-1);
-#else
-  gotoxy(0,1);
-  for(j=0;j<SCREEN_WIDTH/8;j++)
-    cputs(PANEL_SPACER);
 #endif
-
+  
 #ifndef FRAMED
   gotoxy(LIST_X, 0);
   if (qa_mode)
     cputs("## QA MODE ##");
   else
     cputs("#FUJINET GAME LOBBY");
+  TITLE_COLOR(0);
 #endif
 }
 
+/**
+ * @brief Put the lobby url for the current level in buf: the games list, a game's
+ * servers, or (with server set) the urls to join that server
+ */
+void lobby_url(bool server) {
+  strcpy(buf, qa_mode ? LOBBY_QA_ENDPOINT : LOBBY_ENDPOINT);
+  if (in_game) {
+    strcat(buf, "/");
+    itoa(game_type, buf+strlen(buf), 10);
+  }
+  if (server) {
+    strcat(buf, "/");
+    itoa(SERVERS[selected].id, buf+strlen(buf), 10);
+  }
+  strcat(buf, "?bin=1&platform=" PLATFORM);
+}
 
-void display_servers(int old_server) {
-  ServerDetails* server;
-  unsigned char j,y;
-  char * prevGame = NULL;
-  y=0;
+void display_list(int8_t old_selected) {
+  unsigned char j;
+  char *name;
 
-  for (j=0;j<lobby.server_count;j++ )
+  if (old_selected<0)
   {
-
-    server = &lobby.servers[j]; 
-  
-    if (prevGame == NULL || strcmp(server->game, prevGame) !=0)
-    {
-      
-      y+=2;
-      
-      // Exit early if this would roll over the available screen size
-      if (y>page_size) {
-        more_pages = more_pages || (j<=lobby.server_count);
-        lobby.server_count = j;
-        break;
-      }
-
-      prevGame = server->game;
-
-      if (old_server<0)
-      {
+    name = in_game ? game_name : "GAME";
 #ifdef FRAMED
-        setBoldMode(TRUE);
+    setBoldMode(TRUE);
 #endif
-        cputsxy(LIST_X,y,prevGame);
-        if (j>0)
-        {
-           cclear(LIST_W-1-strlen(prevGame));
-        }
-        else
-        {
-          cclear(LIST_W-7-strlen(prevGame));
-          cputs("PLAYERS");
-        }
+    cputsxy(LIST_X,LIST_Y-2,name);
+    if (in_game) {
+      cclear(LIST_W-7-strlen(name));
+      cputs("PLAYERS");
+    } else {
+      cclear(LIST_W-14-strlen(name));
+      cputs("PLAYERS ONLINE");
+    }
+    gotoxy(LIST_X,LIST_Y-1);
+    for(j=0;j<LIST_W;j++)
+      cputc('-');
 #ifdef FRAMED
-        setBoldMode(FALSE);
+    setBoldMode(FALSE);
 #endif
-      }
+#ifdef __ADAM__
+    vdp_vfill(MODE2_ATTR + ((unsigned int)(LIST_Y-2) << 8), HEADER_ATTR, 256);
+#endif
+  }
 
-    }
-
-    // Exit early if this would roll over the available screen size
-    if (y>page_size) {
-      more_pages = more_pages || (j<=lobby.server_count);
-      lobby.server_count = j;
-      break;
-    }
-
-    y++;
-
-    
-    // If just moving the selection, only redraw the old and new server
-    // Also temp guard for servers until paging is implemented
-    if (j>page_size || (old_server>=0 && j != old_server && j != selected_server))
+  for (j=0;j<lobby.count;j++)
+  {
+    // If just moving the selection, only redraw the old and new item
+    if (old_selected>=0 && j != old_selected && j != selected)
       continue;
 
-    // Show the selected server in reverse
-    // Printing full space to overwrite the existing server, a bit convoluted but
+    if (in_game) {
+      name = SERVERS[j].server;
+      itoa(SERVERS[j].players, buf, 10);
+      strcat(buf, "/");
+      itoa(SERVERS[j].max_players, buf+strlen(buf), 10);
+    } else {
+      name = GAMES[j].game;
+      itoa(GAMES[j].players, buf, 10);
+    }
+
+    // Show the selected item in reverse
+    // Printing full space to overwrite the existing item, a bit convoluted but
     // prevents flickering.
-    revers(j == selected_server ? 1 : 0);
-    cputcxy(LIST_X,y,' ');
-    cputs(server->server);
-
-    itoa(server->players, buf, 10);
-    strcat(buf, "/");
-    itoa(server->max_players, buf+strlen(buf), 10);
-
-    cclear(LIST_W-1-strlen(server->server)-strlen(buf));
+    revers(j == selected ? 1 : 0);
+    gotoxy(LIST_X,LIST_Y+j);
+    // Servers are indented under their game's heading
+    if (in_game)
+      cputc(' ');
+    cputs(name);
+    cclear(LIST_W-in_game-strlen(name)-strlen(buf));
     cputs((char *)buf);
-    
-     // Reset reverse
-     if (j == selected_server)
-      revers(0);
   }
-  
+
   // Reset cursor and reverse
   revers(0);
 
-  if (old_server>=0)
+  if (old_selected>=0)
     return;
 
+  // Clear rows left over from a longer list
+  for (;j<page_size;j++)
+    cclearxy(LIST_X,LIST_Y+j,LIST_W);
+
+#ifdef __ADAM__
+  // Rows under the list go back to the backdrop, so the white ends with the list
+  vdp_vfill(MODE2_ATTR + ((unsigned int)(LIST_Y+lobby.count) << 8), BACKDROP_ATTR,
+            (unsigned int)(BOTTOM_PANEL_Y-LIST_Y-lobby.count) << 8);
+
+  // The status area beside keycaps IV-VI is about 128px of proportional font
+  panel_clear();
+  smartkeys_display(NULL,NULL,NULL," REFRESH"," QA MODE",
+                    lobby.count>0 ? (in_game ? "  PLAY" : "  VIEW") : NULL);
+  panel_add("  [R]efresh list  [Q]A\n");
+  panel_add(in_game ? "  [ESC] back  [C]hange name" : "  [C]hange name");
+#else
   CLEAR_BOTTOM_PANEL;
 #if !defined(BUILD_MSDOS) && !defined(FRAMED)
   gotoxy(0,BOTTOM_PANEL_Y-1);
@@ -300,13 +435,27 @@ void display_servers(int old_server) {
     cputs(PANEL_SPACER);
 #endif
 
-  if (lobby.server_count>0)
+  if (lobby.count>0)
   {
     gotoxy(FOOTER_X,BOTTOM_PANEL_Y);
-    cputs("Select game" ACTION_VERB " ");
-    revers(1); cputs(BOOT_KEY); revers(0);
-    cputs(" to " BOOT_WORD);
+    if (in_game) {
+      cputs("Select table" ACTION_VERB " ");
+      revers(1); cputs(BOOT_KEY); revers(0);
+      cputs(" to " BOOT_WORD);
+    } else {
+      cputs("Select game" ACTION_VERB " ");
+      revers(1); cputs(BOOT_KEY); revers(0);
+      cputs(" to view");
+    }
   }
+
+#if BOTTOM_PANEL_ROWS > 2
+  if (in_game) {
+    gotoxy(FOOTER_X,BOTTOM_PANEL_Y+1);
+    revers(1); cputs(BACK_KEY); revers(0);
+    cputs(" back to games");
+  }
+#endif
 
   gotoxy(FOOTER_X,screen_height-1);
   revers(1); cputs("R"); revers(0);
@@ -319,32 +468,30 @@ void display_servers(int old_server) {
   gotoxy(SCREEN_WIDTH-11-LIST_X-FOOTER_X,screen_height-1);
   revers(1); cputs("C"); revers(0);
   cputs("hange name");
+#endif
 }
 
-void refresh_servers(bool clearScreen) { 
+void refresh_list(bool clearScreen) {
   int16_t api_read_result;
-  uint8_t i, attempt;
+  uint8_t attempt;
 
   for(attempt=0;attempt<2;attempt++) {
-      
-    lobby.server_count=0;
-    page_offset[page]=offset;
+
+    lobby.count=0;
     page_size = MAX_PAGE_SIZE - (qa_mode ? 3 : 0);
-    
-    CLEAR_BOTTOM_PANEL;
-    cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,"Retrieving Servers..");
 
-    strcpy(buf, qa_mode ? LOBBY_QA_ENDPOINT : LOBBY_ENDPOINT);
-    strcat(buf, "?bin=1&platform=" PLATFORM "&pagesize=");
+    panel_status(1,in_game ? "Retrieving Tables.." : "Retrieving Games..");
+
+    lobby_url(false);
+    strcat(buf, "&pagesize=");
     itoa(page_size, buf+strlen(buf), 10);
-    strcat(buf, "&offset=");
-    itoa(offset, buf+strlen(buf), 10);
+    strcat(buf, "&page=");
+    itoa(page, buf+strlen(buf), 10);
 
-    
     network_open(buf, OPEN_MODE_HTTP_GET_H, OPEN_TRANS_NONE);
     api_read_result = network_read(buf, (uint8_t*)&lobby, sizeof(lobby));
     network_close(buf);
-    
+
     if (clearScreen && (attempt==1 || api_read_result>0)) {
       banner();
       if (qa_mode) {
@@ -354,27 +501,28 @@ void refresh_servers(bool clearScreen) {
     }
 
 #ifndef FRAMED
+    TITLE_COLOR(1);
     cputsxy(SCREEN_WIDTH-LIST_X-strlen(username),0, username);
+    TITLE_COLOR(0);
 #endif
 
     if (api_read_result<0) {
       if (attempt) {
-        cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,"Could not query Lobby! Error: ");
+        panel_status(1,"Could not query Lobby! Error: ");
         itoa(api_read_result, buf, 10);
-        cputs(buf);
+        panel_append(buf);
       } else {
          // Possibly reached end of list and didn't read due to 404, reset page to 0
           page=0;
-          offset=0;
       }
-    } else if (api_read_result < sizeof(ServerDetails) || lobby.server_count == 0 || lobby.server_count > page_size) {
+    } else if (api_read_result < 3 + (in_game ? sizeof(ServerDetails) : sizeof(GameDetails)) || lobby.count == 0 || lobby.count > page_size) {
       if (attempt) {
-        cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,"No servers are online.");
+        panel_status(1,in_game ? "No tables available." : "No games are online.");
       }
-      lobby.server_count = 0;
+      lobby.count = 0;
     } else {
-      if (selected_server >= lobby.server_count) {
-        selected_server = 0;
+      if (selected >= lobby.count) {
+        selected = 0;
       }
       break;
     }
@@ -382,8 +530,8 @@ void refresh_servers(bool clearScreen) {
   }
 
   // Check for more pages if we received a full page size reponse
-  more_pages = lobby.server_count == page_size;
-  display_servers(-1);
+  more_pages = lobby.count == page_size;
+  display_list(-1);
 }
 
 
@@ -423,22 +571,39 @@ void register_user(void) {
 
 
 /**
- * @brief Mount the selected server's client and reboot
+ * @brief Get the selected server's urls, then mount its client and reboot
 */
 void mount() {
   static char *client_path, *host, *filename; 
   static uint8_t i, slot;
+  static int16_t api_read_result;
 
-  // // Sanity check - a valid server index was selected, and the game type is > 0
-  if (lobby.server_count==0 || selected_server >= lobby.server_count || lobby.servers[selected_server].game_type == 0) {
+  // Sanity check - a valid server index was selected, and the game type is > 0
+  if (lobby.count==0 || selected >= lobby.count || game_type == 0) {
     return;
   } 
+
+  panel_status(1,"Retrieving Server..");
+
+  lobby_url(true);
+  network_open(buf, OPEN_MODE_HTTP_GET_H, OPEN_TRANS_NONE);
+  api_read_result = network_read(buf, (uint8_t*)&INSTANCE, sizeof(InstanceDetails));
+  network_close(buf);
+
+  if (api_read_result < 0 || api_read_result < sizeof(InstanceDetails)) {
+    panel_status(0,"ERROR: Could not get server: ");
+    itoa(api_read_result, buf, 10);
+    panel_append(buf);
+    pause();
+    refresh_list(false);
+    return;
+  }
   
-  // // Remove the protocol for now, assume TNFS://
-  if (client_path = strstr(lobby.servers[selected_server].client_url, "://"))
+  // Remove the protocol for now, assume TNFS://
+  if (client_path = strstr(INSTANCE.client_url, "://"))
     client_path+=3;
   else
-    client_path = lobby.servers[selected_server].client_url;
+    client_path = INSTANCE.client_url;
 
   strcpy(buf,client_path);
   if (strlen(client_path)>ELLIPSIS_WIDTH) {
@@ -447,17 +612,15 @@ void mount() {
   }
 #ifdef _CMOC_VERSION_
   // reboot() prints this once it has left graphics mode
-  for (i = 0; i < sizeof(loading_name) - 1 && lobby.servers[selected_server].game[i]; i++) {
-    char c = lobby.servers[selected_server].game[i];
+  for (i = 0; i < sizeof(loading_name) - 1 && game_name[i]; i++) {
+    char c = game_name[i];
     loading_name[i] = (c >= 'a' && c <= 'z') ? c - 32 : c;
   }
   loading_name[i] = 0;
 #endif
 
-  CLEAR_BOTTOM_PANEL;
-
-  cputsxy(FOOTER_X,BOTTOM_PANEL_Y, MOUNTING);
-  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1, buf);
+  panel_status(0, MOUNTING);
+  panel_line(1, buf);
 
   // Get the host and filename
   if (filename = strstr(client_path,"/")) {
@@ -468,10 +631,9 @@ void mount() {
   host = strtok(client_path,"/");
 
   if (filename == NULL || host == NULL) {
-    CLEAR_BOTTOM_PANEL;
-    cputsxy(FOOTER_X,BOTTOM_PANEL_Y,"ERROR: Invalid client file");
+    panel_status(0,"ERROR: Invalid client file");
     pause();
-    refresh_servers(false);
+    refresh_list(false);
     return;
   }
 
@@ -508,113 +670,166 @@ void mount() {
   fuji_mount_disk_image(0, 1);
 
   // Set the server url in this game type's app key:
-  write_appkey(CREATOR_ID,APP_ID,lobby.servers[selected_server].game_type, strlen(lobby.servers[selected_server].url), lobby.servers[selected_server].url);  
+  write_appkey(CREATOR_ID,APP_ID,game_type, strlen(INSTANCE.url), INSTANCE.url);  
   
   // Reboot / run the game
   reboot();
 
 }
 
+/**
+ * @brief Open the selected game's list of servers
+ */
+void open_game() {
+  if (lobby.count==0 || selected >= lobby.count || GAMES[selected].game_type == 0)
+    return;
+
+  game_type = GAMES[selected].game_type;
+  strcpy(game_name, GAMES[selected].game);
+  game_page = page;
+  game_selected = selected;
+
+  in_game = true;
+  page = 0;
+  selected = 0;
+  refresh_list(true);
+}
+
+/**
+ * @brief Return from a game's servers to the games list
+ */
+void close_game() {
+  in_game = false;
+  page = game_page;
+  selected = game_selected;
+  refresh_list(true);
+}
+
 void change_selection(int8_t delta) {
-    int old_server = selected_server;
+    int8_t old_selected = selected;
 
-    selected_server += delta;
+    selected += delta;
 
-    if (selected_server <0) {
-      selected_server=0;
+    if (selected <0) {
+      selected=0;
 
       if (page>0) {
         // Go back a page
         page--;
-        offset=page_offset[page];
-        refresh_servers(true);
+        refresh_list(true);
         return;
       }  else if (!more_pages) {
-        selected_server=lobby.server_count-1;
+        selected=lobby.count-1;
       }
     }
-    else if (selected_server >= lobby.server_count) {
-      selected_server=0;
+    else if (selected >= lobby.count) {
+      selected=0;
       
       if (more_pages) {
         // Move to next page
-        offset+=lobby.server_count;
         page++;
-        refresh_servers(true);
+        refresh_list(true);
         return;
       } else if (page>0) {
         // Last page, go back to page 0
-        offset=0;
         page=0;
-        refresh_servers(true);
+        refresh_list(true);
         return;
       } 
     }
 
    
-  // Not switching pages, just update selected server
-  display_servers(old_server);
+  // Not switching pages, just update the selection
+  display_list(old_selected);
         
     
+}
+
+/**
+ * @brief Open the selected game, or join the selected server
+ */
+void select_item() {
+  if (in_game)
+    mount();
+  else
+    open_game();
 }
  
 void event_loop() {
   while (true) { 
     readCommonInput();
-    
+
+#ifdef __ADAM__
+    // SmartKeys IV-VI do what display_list() labels them
+    if (input.key == KEY_SMART_IV)
+      input.key = 'r';
+    else if (input.key == KEY_SMART_V)
+      input.key = 'q';
+    else if (input.key == KEY_SMART_VI)
+      input.trigger = true;
+#endif
+
     switch (input.key) {
-#ifdef FRAMED
+#ifdef _CMOC_VERSION_
       case 's':
       case 'S':
         cycle_colorset();
         banner();
-        display_servers(-1);
+        display_list(-1);
         break;
 #endif
       case 'c':
       case 'C':
         banner();  
         get_username();
-        refresh_servers(true);
+        refresh_list(true);
         break;
       case 'q':
       case 'Q':
         qa_mode = !qa_mode;
+        in_game = false;
         page = 0;
-        offset = 0;
-        selected_server = 0;
-        refresh_servers(true);
+        selected = 0;
+        refresh_list(true);
         break;
       case 'r':
       case 'R':
-        refresh_servers(false);
+        refresh_list(false);
         break;
-    case CH_ESC: // Escape / Break - quit to config
+    case CH_ESC: // Escape / Break - back to games, or quit to config
+        if (in_game) {
+          close_game();
+          break;
+        }
+#ifndef NO_CONFIG_BOOT
         fuji_set_boot_mode(0);
+#endif
         COLD_BOOT;
     }
     
     waitvsync();
-    // Arrow keys select the server
-    if ( input.dirY || input.dirX) {
-      change_selection(input.dirY + input.dirX*30);
-    } 
+    // Up/down arrows select the game or server, left goes back to games
+    if (input.dirY) {
+      change_selection(input.dirY);
+    } else if (input.dirX<0 && in_game) {
+      close_game();
+    }
     
     
     // ifdef hack for Atari, for now
     #ifdef __ATARI__
-    // Pressing Option mounts the client for the server
+    // Pressing Option selects the game or server
     if (CONSOL_OPTION(GTIA_READ.consol))
     {
-      mount();
+      select_item();
         // Wait until OPTION is released
       while (CONSOL_OPTION(GTIA_READ.consol));
     }
     #endif  
 
-    // Mount if return/enter is pressed
+    // Select if return/enter is pressed
     if (input.trigger) {
-      mount();
+      select_item();
     }        
   }
 }
@@ -645,8 +860,6 @@ void main(void)
 #endif
   for(i=0;i<45;i++) waitvsync();
 
-  refresh_servers(true);
+  refresh_list(true);
   event_loop();
 }
-
-#endif /* BUILD_ADAM */

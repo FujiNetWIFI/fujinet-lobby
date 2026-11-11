@@ -26,13 +26,15 @@
 #define KEY_DOWN_ARROW_2    0x11
 #define KEY_DOWN_ARROW_3    0x3D // =
 
-/* These three are also defined, identically, by <smartkeys.h>. Identical
-   object-like redefinition is legal, so both headers can be included. */
 #define KEY_RETURN       0x0D
 #define KEY_ESCAPE       0x1B
 #define KEY_BACKSPACE    0x08
 
 #define KEY_SPACEBAR     0x20
+
+#define KEY_SMART_IV     0x84
+#define KEY_SMART_V      0x85
+#define KEY_SMART_VI     0x86
 
 /* Underscore in the generic z88dk console font. */
 #define CHAR_CURSOR      0x5F

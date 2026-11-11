@@ -1,0 +1,25 @@
+# the screenshots (make shots, throttled, the push paced): the list, a long
+# name scrolled, page 2, the help, a join, its bar part way, ready
+wait 150
+snap list
+press down
+press down
+wait 140
+snap marquee
+press right
+wait 100
+snap page2
+key ?
+wait 60
+snap help
+key ENT
+wait 60
+press left
+wait 100
+press fire
+wait 14
+snap joining
+wait 86
+snap loading
+wait 30
+snap ready
