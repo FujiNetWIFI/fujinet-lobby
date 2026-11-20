@@ -21,6 +21,10 @@
 #include <video/tms99x8.h>
 #endif
 
+#ifdef __ATARI5200__
+#include <fujinet-atari5200.h>
+#endif
+
 #include "platform.h"
 #include "io.h"
 
@@ -28,7 +32,9 @@
 #define APP_ID     0x01   /* LOBBY    */
 #define KEY_ID     0x00   /* USERNAME */
 
+#ifndef LOBBY_ENDPOINT // -DLOBBY_ENDPOINT=... points a test build at another lobby
 #define LOBBY_ENDPOINT "N:https://lobby.fujinet.online/games"
+#endif
 #define LOBBY_QA_ENDPOINT "N:https://qalobby.fujinet.online/games"
 
 //#define LOBBY_ENDPOINT "N:http://localhost:8080/games"
@@ -60,6 +66,22 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
   #define BOOT_WORD "play"
   #define BACKGROUND_COLOR 0x90
   #define FOREGROUND_COLOR 0xff
+#endif
+
+#ifdef __ATARI5200__
+  #define PLATFORM "atari5200"
+  #define ACTION_VERB ", press"
+  #define BOOT_KEY "FIRE"
+  #define BOOT_WORD "play"
+  #undef BACK_KEY
+  #define BACK_KEY "*"
+  #define CONTINUE_KEY "#"
+  #define BACKGROUND_COLOR 0x94 /* CONFIG's blue */
+  #define FOREGROUND_COLOR 0x0C
+  // Leave through the cartridge: it swaps CONFIG back in
+  #define NO_CONFIG_BOOT
+  #undef COLD_BOOT
+  #define COLD_BOOT fuji_a5200_config()
 #endif
 
 #ifdef __APPLE2__
@@ -159,6 +181,10 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
 #endif
 
 
+#ifndef CONTINUE_KEY
+  #define CONTINUE_KEY "RETURN"
+#endif
+
 // gotoxy + c* saves a little space
 #define cputsxy(x,y,s) do { gotoxy(x,y); cputs(s); } while (0)
 #define cputcxy(x,y,c) do { gotoxy(x,y); cputc(c); } while (0)
@@ -234,7 +260,7 @@ LobbyResponse lobby;
 void pause(void) {
   cputs("\r\nPress ");
   revers(1);
-  cputs("RETURN");
+  cputs(CONTINUE_KEY);
   revers(0);
   cputs(" to continue.");
   cgetc();
@@ -457,6 +483,16 @@ void display_list(int8_t old_selected) {
   }
 #endif
 
+#ifdef __ATARI5200__
+  // The keypad's START, 0 and PAUSE are what event_loop() sees as R, Q and C
+  gotoxy(FOOTER_X,screen_height-1);
+  revers(1); cputs("START"); revers(0);
+  cputs(" refresh  ");
+  revers(1); cputs("0"); revers(0);
+  cputs(" QA  ");
+  revers(1); cputs("PAUSE"); revers(0);
+  cputs(" name");
+#else
   gotoxy(FOOTER_X,screen_height-1);
   revers(1); cputs("R"); revers(0);
   cputs("efresh list   ");
@@ -468,6 +504,7 @@ void display_list(int8_t old_selected) {
   gotoxy(SCREEN_WIDTH-11-LIST_X-FOOTER_X,screen_height-1);
   revers(1); cputs("C"); revers(0);
   cputs("hange name");
+#endif
 #endif
 }
 

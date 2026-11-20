@@ -3,6 +3,7 @@ PLATFORMS += adam
 #PLATFORMS += adam_cpm
 PLATFORMS += apple2
 PLATFORMS += atari
+PLATFORMS += atari5200
 PLATFORMS += c64
 PLATFORMS += coco
 PLATFORMS += msdos
@@ -68,6 +69,11 @@ include mekkogx/toplevel-rules.mk
 # not merely above the screen buffer. Use cmoc's stock $2800 default.
 LDFLAGS_EXTRA_COCO = --org=2800 --limit=7C00
 CFLAGS_EXTRA_COCO += -Wno-const
+
+# The top 1K of RAM is the 40x24 text screen (src/atari5200/conio.c)
+LDFLAGS_EXTRA_ATARI5200 = -Wl -D,__RESERVED_MEMORY__=0x400
+# fujinet-atari5200.h is in the lib's source tree, not its include dir
+CFLAGS_EXTRA_ATARI5200 = --include-dir $(FUJINET_LIB_INCLUDE)/../bus/atari5200
 
 LDFLAGS_EXTRA_MODEL2 = -pragma-define:CRT_TRIM_BSS=1
 
