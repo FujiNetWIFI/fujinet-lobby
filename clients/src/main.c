@@ -511,6 +511,7 @@ void display_list(int8_t old_selected) {
 void refresh_list(bool clearScreen) {
   int16_t api_read_result;
   uint8_t attempt;
+  const char *failure = NULL; // Shown after display_list(), which clears the panel
 
   for(attempt=0;attempt<2;attempt++) {
 
@@ -548,6 +549,7 @@ void refresh_list(bool clearScreen) {
         panel_status(1,"Could not query Lobby! Error: ");
         itoa(api_read_result, buf, 10);
         panel_append(buf);
+        failure = "Could not query Lobby!";
       } else {
          // Possibly reached end of list and didn't read due to 404, reset page to 0
           page=0;
@@ -555,6 +557,7 @@ void refresh_list(bool clearScreen) {
     } else if (api_read_result < 3 + (in_game ? sizeof(ServerDetails) : sizeof(GameDetails)) || lobby.count == 0 || lobby.count > page_size) {
       if (attempt) {
         panel_status(1,in_game ? "No tables available." : "No games are online.");
+        failure = in_game ? "No tables available." : "No games are online.";
       }
       lobby.count = 0;
     } else {
@@ -569,6 +572,12 @@ void refresh_list(bool clearScreen) {
   // Check for more pages if we received a full page size reponse
   more_pages = lobby.count == page_size;
   display_list(-1);
+#ifndef __ADAM__
+  // display_list() cleared the panel, and the message with it
+  if (failure && lobby.count == 0) {
+    cputsxy(FOOTER_X,BOTTOM_PANEL_Y+1,failure);
+  }
+#endif
 }
 
 
