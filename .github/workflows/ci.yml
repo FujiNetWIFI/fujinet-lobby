@@ -148,3 +148,30 @@ jobs:
         with:
           name: arcadia
           path: arcadia/build/lobby.bin
+
+  # The Bally Astrocade lobby: Z80 assembly, zmac. No distro packages zmac,
+  # so build.sh compiles the copy vendored with the Astrocade cart in
+  # fujinet-firmware pico/astrocade, and runs that tree's checkrom.py on
+  # the 8K image.
+  astrocade:
+    name: extra (astrocade)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch fujinet-firmware pico/astrocade
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse \
+            https://github.com/FujiNetWIFI/fujinet-firmware.git "$RUNNER_TEMP/fw"
+          git -C "$RUNNER_TEMP/fw" sparse-checkout set pico/astrocade
+
+      - name: Build
+        working-directory: astrocade
+        run: make FUJI_FIRMWARE="$RUNNER_TEMP/fw"
+
+      - name: Upload artifact for astrocade
+        uses: actions/upload-artifact@v4
+        with:
+          name: astrocade
+          path: astrocade/build/lobby.bin
