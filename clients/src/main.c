@@ -25,6 +25,10 @@
 #include <fujinet-atari5200.h>
 #endif
 
+#ifdef __ATARI7800__
+#include <fujinet-atari7800.h>
+#endif
+
 #include "platform.h"
 #include "io.h"
 
@@ -82,6 +86,20 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
   #define NO_CONFIG_BOOT
   #undef COLD_BOOT
   #define COLD_BOOT fuji_a5200_config()
+#endif
+
+#ifdef __ATARI7800__
+  #define PLATFORM "atari7800"
+  #define ACTION_VERB ", press"
+  #define BOOT_KEY "FIRE"
+  #define BOOT_WORD "play"
+  #undef BACK_KEY
+  #define BACK_KEY "RESET"
+  #define CONTINUE_KEY "FIRE"
+  // Leave through the cartridge: it swaps CONFIG back in
+  #define NO_CONFIG_BOOT
+  #undef COLD_BOOT
+  #define COLD_BOOT fuji_a7800_config()
 #endif
 
 #ifdef __APPLE2__
@@ -190,9 +208,18 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
 #define cputcxy(x,y,c) do { gotoxy(x,y); cputc(c); } while (0)
 #define cclearxy(x,y,c) do { gotoxy(x,y); cclear(c); } while (0)
 
+// The 7800 gives each kind of text its own colour (atari7800/conio.c)
+#ifdef __ATARI7800__
+  #define ROLE(r) textcolor(r)
+#else
+  #define ROLE(r)
+#endif
+
 // CONFIG draws the Adam's title row white on dark blue over black-on-white content
 #ifdef __ADAM__
   #define TITLE_COLOR(on) adam_set_normal((on) ? WHITE : BLACK, (on) ? BLUE : WHITE)
+#elif defined(__ATARI7800__)
+  #define TITLE_COLOR(on) ROLE((on) ? R_TITLE : R_TEXT)
 #else
   #define TITLE_COLOR(on)
 #endif
@@ -258,6 +285,7 @@ LobbyResponse lobby;
 #define INSTANCE (*(InstanceDetails*)&lobby)
 
 void pause(void) {
+  ROLE(R_HINT);
   cputs("\r\nPress ");
   revers(1);
   cputs(CONTINUE_KEY);
@@ -340,7 +368,7 @@ void banner(void) {
 
 #if defined(BUILD_MSDOS)
   draw_box(0, 0, SCREEN_WIDTH, BOTTOM_PANEL_Y);
-#elif defined(__ADAM__)
+#elif defined(__ADAM__) || defined(__ATARI7800__)
   TITLE_COLOR(1);
   cclearxy(0,0,SCREEN_WIDTH);
 #elif defined(FRAMED)
@@ -384,6 +412,7 @@ void display_list(int8_t old_selected) {
 #ifdef FRAMED
     setBoldMode(TRUE);
 #endif
+    ROLE(R_HEAD);
     cputsxy(LIST_X,LIST_Y-2,name);
     if (in_game) {
       cclear(LIST_W-7-strlen(name));
@@ -392,6 +421,7 @@ void display_list(int8_t old_selected) {
       cclear(LIST_W-14-strlen(name));
       cputs("PLAYERS ONLINE");
     }
+    ROLE(R_RULE);
     gotoxy(LIST_X,LIST_Y-1);
     for(j=0;j<LIST_W;j++)
       cputc('-');
@@ -423,17 +453,20 @@ void display_list(int8_t old_selected) {
     // Printing full space to overwrite the existing item, a bit convoluted but
     // prevents flickering.
     revers(j == selected ? 1 : 0);
+    ROLE(R_NAME);
     gotoxy(LIST_X,LIST_Y+j);
     // Servers are indented under their game's heading
     if (in_game)
       cputc(' ');
     cputs(name);
     cclear(LIST_W-in_game-strlen(name)-strlen(buf));
+    ROLE(R_COUNT);
     cputs((char *)buf);
   }
 
   // Reset cursor and reverse
   revers(0);
+  ROLE(R_TEXT);
 
   if (old_selected>=0)
     return;
@@ -456,10 +489,12 @@ void display_list(int8_t old_selected) {
 #else
   CLEAR_BOTTOM_PANEL;
 #if !defined(BUILD_MSDOS) && !defined(FRAMED)
+  ROLE(R_RULE);
   gotoxy(0,BOTTOM_PANEL_Y-1);
   for(j=0;j<SCREEN_WIDTH/8;j++)
     cputs(PANEL_SPACER);
 #endif
+  ROLE(R_HINT);
 
   if (lobby.count>0)
   {
@@ -492,6 +527,15 @@ void display_list(int8_t old_selected) {
   cputs(" QA  ");
   revers(1); cputs("PAUSE"); revers(0);
   cputs(" name");
+#elif defined(__ATARI7800__)
+  // The console switches are what event_loop() sees as R, Q and C
+  gotoxy(FOOTER_X,screen_height-1);
+  revers(1); cputs("PAUSE"); revers(0);
+  cputs(" refresh  ");
+  revers(1); cputs("SEL+PAUSE"); revers(0);
+  cputs(" QA  ");
+  revers(1); cputs("SELECT"); revers(0);
+  cputs(" name");
 #else
   gotoxy(FOOTER_X,screen_height-1);
   revers(1); cputs("R"); revers(0);
@@ -506,6 +550,7 @@ void display_list(int8_t old_selected) {
   cputs("hange name");
 #endif
 #endif
+  ROLE(R_TEXT);
 }
 
 void refresh_list(bool clearScreen) {
@@ -517,6 +562,7 @@ void refresh_list(bool clearScreen) {
     lobby.count=0;
     page_size = MAX_PAGE_SIZE - (qa_mode ? 3 : 0);
 
+    ROLE(R_STATUS);
     panel_status(1,in_game ? "Retrieving Tables.." : "Retrieving Games..");
 
     lobby_url(false);
@@ -532,6 +578,7 @@ void refresh_list(bool clearScreen) {
     if (clearScreen && (attempt==1 || api_read_result>0)) {
       banner();
       if (qa_mode) {
+        ROLE(R_NOTE);
         cputsxy(LIST_X,BOTTOM_PANEL_Y-3,"QA mode is for testing new games");
         cputsxy(LIST_X,BOTTOM_PANEL_Y-2,"Visit: LOBBY.FUJINET.ONLINE/DOCS");
       }
@@ -539,12 +586,14 @@ void refresh_list(bool clearScreen) {
 
 #ifndef FRAMED
     TITLE_COLOR(1);
+    ROLE(R_USER);
     cputsxy(SCREEN_WIDTH-LIST_X-strlen(username),0, username);
     TITLE_COLOR(0);
 #endif
 
     if (api_read_result<0) {
       if (attempt) {
+        ROLE(R_ERROR);
         panel_status(1,"Could not query Lobby! Error: ");
         itoa(api_read_result, buf, 10);
         panel_append(buf);
@@ -554,6 +603,7 @@ void refresh_list(bool clearScreen) {
       }
     } else if (api_read_result < 3 + (in_game ? sizeof(ServerDetails) : sizeof(GameDetails)) || lobby.count == 0 || lobby.count > page_size) {
       if (attempt) {
+        ROLE(R_STATUS);
         panel_status(1,in_game ? "No tables available." : "No games are online.");
       }
       lobby.count = 0;
@@ -578,7 +628,9 @@ void refresh_list(bool clearScreen) {
  */
 void get_username() {
 
+  ROLE(R_NOTE);
   cputsxy(LIST_X,8,"Enter your username:");
+  ROLE(R_TEXT);
   cputsxy(LIST_X,10,"[         ]");
 
   while (1) {
@@ -600,9 +652,13 @@ void register_user(void) {
   if (strlen(username)==0)
     get_username();
 
+  ROLE(R_HEAD);
   cputsxy(LIST_X,2,"Welcome, ");
+  ROLE(R_COUNT);
   cputs(username);
+  ROLE(R_HEAD);
   cputs(".");
+  ROLE(R_TEXT);
 }
 
 
@@ -620,6 +676,7 @@ void mount() {
     return;
   } 
 
+  ROLE(R_STATUS);
   panel_status(1,"Retrieving Server..");
 
   lobby_url(true);
@@ -628,6 +685,7 @@ void mount() {
   network_close(buf);
 
   if (api_read_result < 0 || api_read_result < sizeof(InstanceDetails)) {
+    ROLE(R_ERROR);
     panel_status(0,"ERROR: Could not get server: ");
     itoa(api_read_result, buf, 10);
     panel_append(buf);
@@ -668,6 +726,7 @@ void mount() {
   host = strtok(client_path,"/");
 
   if (filename == NULL || host == NULL) {
+    ROLE(R_ERROR);
     panel_status(0,"ERROR: Invalid client file");
     pause();
     refresh_list(false);

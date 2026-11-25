@@ -4,6 +4,7 @@ PLATFORMS += adam
 PLATFORMS += apple2
 PLATFORMS += atari
 PLATFORMS += atari5200
+PLATFORMS += atari7800
 PLATFORMS += c64
 PLATFORMS += coco
 PLATFORMS += msdos
@@ -74,6 +75,12 @@ CFLAGS_EXTRA_COCO += -Wno-const
 LDFLAGS_EXTRA_ATARI5200 = -Wl -D,__RESERVED_MEMORY__=0x400
 # fujinet-atari5200.h is in the lib's source tree, not its include dir
 CFLAGS_EXTRA_ATARI5200 = --include-dir $(FUJINET_LIB_INCLUDE)/../bus/atari5200
+
+# The atari7800 target is only on this branch of fujinet-lib-experimental so
+# far; switch to the default once fujinet-lib main has it
+ifeq ($(PLATFORM),atari7800)
+  FUJINET_LIB = https://github.com/tschak909/fujinet-lib-experimental.git\#add-atari7800
+endif
 
 LDFLAGS_EXTRA_MODEL2 = -pragma-define:CRT_TRIM_BSS=1
 

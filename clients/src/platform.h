@@ -9,6 +9,7 @@
 // Include platform specific defines before the input include
 #include "atari/vars.h"
 #include "atari5200/vars.h"
+#include "atari7800/vars.h"
 #include "apple2/vars.h"
 #include "c64/vars.h"
 #include "coco/vars.h"

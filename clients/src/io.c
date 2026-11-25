@@ -119,7 +119,7 @@ void readCommonInput() {
 
 // 9085
 
-#ifndef __ATARI5200__ // the 5200 picks letters with the stick: atari5200/platform.c
+#if !defined(__ATARI5200__) && !defined(__ATARI7800__) // these pick letters with the stick: <platform>/platform.c
 /// @brief Custom input field with max length
 void inputField(uint8_t x, uint8_t y, uint8_t max, char* buffer) {
   static uint8_t curx;
@@ -152,4 +152,4 @@ void inputField(uint8_t x, uint8_t y, uint8_t max, char* buffer) {
     cputc(CHAR_CURSOR);
   }
 }
-#endif /* !__ATARI5200__ */
+#endif /* !__ATARI5200__ && !__ATARI7800__ */
