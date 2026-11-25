@@ -21,6 +21,7 @@ jobs:
           - apple2
           - atari
           - atari5200
+          - atari7800
           - c64
           - coco
           - model2
