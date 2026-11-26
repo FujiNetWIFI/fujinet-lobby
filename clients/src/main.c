@@ -592,20 +592,10 @@ void refresh_list(bool clearScreen) {
 #endif
 
     if (api_read_result<0) {
-      if (attempt) {
-        ROLE(R_ERROR);
-        panel_status(1,"Could not query Lobby! Error: ");
-        itoa(api_read_result, buf, 10);
-        panel_append(buf);
-      } else {
-         // Possibly reached end of list and didn't read due to 404, reset page to 0
-          page=0;
-      }
+      // Possibly reached end of list and didn't read due to 404, reset page to 0
+      if (!attempt)
+        page=0;
     } else if (api_read_result < 3 + (in_game ? sizeof(ServerDetails) : sizeof(GameDetails)) || lobby.count == 0 || lobby.count > page_size) {
-      if (attempt) {
-        ROLE(R_STATUS);
-        panel_status(1,in_game ? "No tables available." : "No games are online.");
-      }
       lobby.count = 0;
     } else {
       if (selected >= lobby.count) {
@@ -619,6 +609,21 @@ void refresh_list(bool clearScreen) {
   // Check for more pages if we received a full page size reponse
   more_pages = lobby.count == page_size;
   display_list(-1);
+
+  // Say why the list is empty on its first row: display_list() clears the panel
+  if (!lobby.count) {
+    gotoxy(LIST_X,LIST_Y);
+    if (api_read_result<0) {
+      ROLE(R_ERROR);
+      cputs("Could not query Lobby: ");
+      itoa(api_read_result, buf, 10);
+      cputs(buf);
+    } else {
+      ROLE(R_STATUS);
+      cputs(in_game ? "No tables available." : "No games are online.");
+    }
+    ROLE(R_TEXT);
+  }
 }
 
 
