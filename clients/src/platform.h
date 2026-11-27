@@ -15,6 +15,7 @@
 #include "coco/vars.h"
 #include "adam/vars.h"
 #include "model2/vars.h"
+#include "msx/vars.h"
 
 
 

@@ -9,7 +9,7 @@ PLATFORMS += c64
 PLATFORMS += coco
 PLATFORMS += msdos
 PLATFORMS += model2
-#PLATFORMS += msxrom
+PLATFORMS += msxrom
 
 # You can run 'make <platform>' to build for a specific platform,
 # or 'make <platform>/<target>' for a platform-specific target.
