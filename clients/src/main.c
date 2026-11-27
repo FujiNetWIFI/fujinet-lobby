@@ -166,6 +166,35 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
   #define COLD_BOOT quit()
 #endif
 
+#ifdef __MSX__
+  #define PLATFORM "msx"
+  #define ACTION_VERB ", press"
+  #define BOOT_KEY "RETURN"
+  #define BOOT_WORD "play"
+  #undef SCREEN_WIDTH
+  #define SCREEN_WIDTH 32
+  #define CH_ESC 0x1B
+  // CONFIG's card (msx/conio.c): the welcome on row 0, its title tab on row
+  // 1, the headings on row 2, the list under them and its bottom edge on row 19. The status lines and
+  // the function key menu below it are CONFIG's too.
+  #define TITLE_IN_FRAME
+  #undef LIST_Y
+  #define LIST_Y 3
+  #define HEADER_Y 2
+  #define NO_RULE
+  #undef MAX_PAGE_SIZE
+  #define MAX_PAGE_SIZE 16
+  #define QA_NOTE_Y 17
+  #define QA_NOTE_2_Y 18
+  #define QA_NOTE_1 "QA is for testing new games"
+  #define QA_NOTE_2 "lobby.fujinet.online/docs"
+  #define PANEL_X(msg) ((SCREEN_WIDTH - strlen(msg)) / 2)
+  // CONFIG is the cartridge's own ROM: switch back to it and restart
+  #define NO_CONFIG_BOOT
+  #undef COLD_BOOT
+  #define COLD_BOOT fuji_set_cart_mode(MSX_CART_MODE_CONFIG)
+#endif
+
 #ifdef BUILD_MSDOS
   #define PLATFORM "msdos"
   #define ACTION_VERB ", press"
@@ -175,6 +204,8 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
   #define LIST_X 1
 #elif defined(FRAMED)
   #define LIST_X 1
+#elif defined(__MSX__)
+  #define LIST_X 2 // the bar's pill caps go in the columns either side
 #else
   #define LIST_X 0
 #endif
@@ -203,13 +234,29 @@ DeviceSlot device_slots[FUJI_DEVICE_SLOT_COUNT];
   #define CONTINUE_KEY "RETURN"
 #endif
 
+#ifdef FRAMED
+  #define TITLE_IN_FRAME
+#endif
+#ifndef HEADER_Y
+  #define HEADER_Y (LIST_Y-2)
+#endif
+#ifndef QA_NOTE_Y
+  #define QA_NOTE_Y (BOTTOM_PANEL_Y-3)
+  #define QA_NOTE_2_Y (BOTTOM_PANEL_Y-2)
+  #define QA_NOTE_1 "QA mode is for testing new games"
+  #define QA_NOTE_2 "Visit: LOBBY.FUJINET.ONLINE/DOCS"
+#endif
+#ifndef PANEL_X
+  #define PANEL_X(msg) FOOTER_X
+#endif
+
 // gotoxy + c* saves a little space
 #define cputsxy(x,y,s) do { gotoxy(x,y); cputs(s); } while (0)
 #define cputcxy(x,y,c) do { gotoxy(x,y); cputc(c); } while (0)
 #define cclearxy(x,y,c) do { gotoxy(x,y); cclear(c); } while (0)
 
-// The 7800 gives each kind of text its own colour (atari7800/conio.c)
-#ifdef __ATARI7800__
+// The 7800 and MSX give each kind of text its own colour (<platform>/conio.c)
+#if defined(__ATARI7800__) || defined(__MSX__)
   #define ROLE(r) textcolor(r)
 #else
   #define ROLE(r)
@@ -334,7 +381,7 @@ void panel_status(uint8_t row, const char *msg)
   panel_add("  ");
   panel_add(msg);
 #else
-  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+row,msg);
+  cputsxy(PANEL_X(msg),BOTTOM_PANEL_Y+row,msg);
 #endif
 }
 
@@ -346,7 +393,7 @@ void panel_line(uint8_t row, const char *msg)
   panel_add("\n  ");
   panel_add(msg);
 #else
-  cputsxy(FOOTER_X,BOTTOM_PANEL_Y+row,msg);
+  cputsxy(PANEL_X(msg),BOTTOM_PANEL_Y+row,msg);
 #endif
 }
 
@@ -373,9 +420,14 @@ void banner(void) {
   cclearxy(0,0,SCREEN_WIDTH);
 #elif defined(FRAMED)
   draw_frame(qa_mode ? "## QA MODE ##" : "#FUJINET GAME LOBBY", username, BOTTOM_PANEL_Y-1);
+#elif defined(__MSX__)
+  msx_card(in_game ? game_name : "Games");
+  ROLE(R_TEXT);
+  cputsxy(1,0,"Welcome, ");
+  cputs(username);
 #endif
   
-#ifndef FRAMED
+#ifndef TITLE_IN_FRAME
   gotoxy(LIST_X, 0);
   if (qa_mode)
     cputs("## QA MODE ##");
@@ -405,15 +457,31 @@ void lobby_url(bool server) {
 void display_list(int8_t old_selected) {
   unsigned char j;
   char *name;
+#ifdef __MSX__
+  uint8_t room;
+#endif
 
   if (old_selected<0)
   {
+#ifdef __MSX__
+    name = in_game ? "Table" : "Game";
+#else
     name = in_game ? game_name : "GAME";
+#endif
 #ifdef FRAMED
     setBoldMode(TRUE);
 #endif
     ROLE(R_HEAD);
-    cputsxy(LIST_X,LIST_Y-2,name);
+    cputsxy(LIST_X,HEADER_Y,name);
+#ifdef __MSX__
+    if (in_game) {
+      cclear(LIST_W-7-strlen(name));
+      cputs("Players");
+    } else {
+      cclear(LIST_W-14-strlen(name));
+      cputs("Players online");
+    }
+#else
     if (in_game) {
       cclear(LIST_W-7-strlen(name));
       cputs("PLAYERS");
@@ -421,10 +489,13 @@ void display_list(int8_t old_selected) {
       cclear(LIST_W-14-strlen(name));
       cputs("PLAYERS ONLINE");
     }
+#endif
+#ifndef NO_RULE
     ROLE(R_RULE);
     gotoxy(LIST_X,LIST_Y-1);
     for(j=0;j<LIST_W;j++)
       cputc('-');
+#endif
 #ifdef FRAMED
     setBoldMode(FALSE);
 #endif
@@ -449,6 +520,14 @@ void display_list(int8_t old_selected) {
       itoa(GAMES[j].players, buf, 10);
     }
 
+#ifdef __MSX__
+    // A server name can be longer than the card is wide. The list is fetched
+    // again before it is drawn again, so cut it where it is.
+    room = LIST_W - in_game - 1 - strlen(buf);
+    if (strlen(name) > room)
+      name[room] = 0;
+#endif
+
     // Show the selected item in reverse
     // Printing full space to overwrite the existing item, a bit convoluted but
     // prevents flickering.
@@ -463,6 +542,11 @@ void display_list(int8_t old_selected) {
     ROLE(R_COUNT);
     cputs((char *)buf);
   }
+
+#ifdef __MSX__
+  // CONFIG's pill caps either side of the selection (row 0 hides them)
+  msx_bar(lobby.count ? LIST_Y+selected : 0);
+#endif
 
   // Reset cursor and reverse
   revers(0);
@@ -488,7 +572,7 @@ void display_list(int8_t old_selected) {
   panel_add(in_game ? "  [ESC] back  [C]hange name" : "  [C]hange name");
 #else
   CLEAR_BOTTOM_PANEL;
-#if !defined(BUILD_MSDOS) && !defined(FRAMED)
+#if !defined(BUILD_MSDOS) && !defined(FRAMED) && !defined(__MSX__)
   ROLE(R_RULE);
   gotoxy(0,BOTTOM_PANEL_Y-1);
   for(j=0;j<SCREEN_WIDTH/8;j++)
@@ -496,6 +580,9 @@ void display_list(int8_t old_selected) {
 #endif
   ROLE(R_HINT);
 
+#ifdef __MSX__
+  msx_footer(in_game, lobby.count>0);
+#else
   if (lobby.count>0)
   {
     gotoxy(FOOTER_X,BOTTOM_PANEL_Y);
@@ -549,6 +636,7 @@ void display_list(int8_t old_selected) {
   revers(1); cputs("C"); revers(0);
   cputs("hange name");
 #endif
+#endif /* __MSX__ */
 #endif
   ROLE(R_TEXT);
 }
@@ -579,12 +667,12 @@ void refresh_list(bool clearScreen) {
       banner();
       if (qa_mode) {
         ROLE(R_NOTE);
-        cputsxy(LIST_X,BOTTOM_PANEL_Y-3,"QA mode is for testing new games");
-        cputsxy(LIST_X,BOTTOM_PANEL_Y-2,"Visit: LOBBY.FUJINET.ONLINE/DOCS");
+        cputsxy(LIST_X,QA_NOTE_Y,QA_NOTE_1);
+        cputsxy(LIST_X,QA_NOTE_2_Y,QA_NOTE_2);
       }
     }
 
-#ifndef FRAMED
+#ifndef TITLE_IN_FRAME
     TITLE_COLOR(1);
     ROLE(R_USER);
     cputsxy(SCREEN_WIDTH-LIST_X-strlen(username),0, username);
@@ -633,6 +721,19 @@ void refresh_list(bool clearScreen) {
  */
 void get_username() {
 
+#ifdef __MSX__
+  // On CONFIG's logo screen rather than over the card
+  msx_splash(NULL);
+  ROLE(R_TEXT);
+  cputsxy(7,19,"What is your name?");
+  cputsxy(10,21,"[         ]");
+  while (1) {
+    inputField(11,21,8,username);
+    if (strlen(username)>=2 && strlen(username)<=8)
+      break;
+  }
+  msx_splash("Loading...");  // what the prompt covered, while the list loads
+#else
   ROLE(R_NOTE);
   cputsxy(LIST_X,8,"Enter your username:");
   ROLE(R_TEXT);
@@ -643,6 +744,7 @@ void get_username() {
     if (strlen(username)>=2 && strlen(username)<=8)
       break;
   }
+#endif
 
   write_appkey(CREATOR_ID,APP_ID,KEY_ID,strlen(username), username);  
 }
@@ -654,6 +756,11 @@ void get_username() {
 void register_user(void) {  
   read_appkey(CREATOR_ID,APP_ID,KEY_ID,username);
   
+#ifdef __MSX__
+  // The welcome is on the main screen; the prompt took over the loading one
+  if (strlen(username)==0)
+    get_username();
+#else
   if (strlen(username)==0)
     get_username();
 
@@ -664,6 +771,7 @@ void register_user(void) {
   ROLE(R_HEAD);
   cputs(".");
   ROLE(R_TEXT);
+#endif
 }
 
 
@@ -859,6 +967,9 @@ void select_item() {
 void event_loop() {
   while (true) { 
     readCommonInput();
+#ifdef __MSX__
+    msx_menu_key();  // the menu's letters onto the keys below
+#endif
 
 #ifdef __ADAM__
     // SmartKeys IV-VI do what display_list() labels them
@@ -881,7 +992,9 @@ void event_loop() {
 #endif
       case 'c':
       case 'C':
-        banner();  
+#ifndef __MSX__
+        banner();
+#endif
         get_username();
         refresh_list(true);
         break;
@@ -902,6 +1015,12 @@ void event_loop() {
           close_game();
           break;
         }
+#ifdef __MSX__
+        if (!msx_confirm("Exit games lobby? Y/N")) {
+          msx_status(in_game, lobby.count>0);
+          break;
+        }
+#endif
 #ifndef NO_CONFIG_BOOT
         fuji_set_boot_mode(0);
 #endif
@@ -952,14 +1071,20 @@ void main(void)
   textcolor(FOREGROUND_COLOR);
   #endif
 
+#ifdef __MSX__
+  msx_splash("Loading...");
+#else
   banner();
+#endif
   
   register_user();
 #ifdef FRAMED
   /* redraw the border in place so the username appears without clearing */
   draw_frame(qa_mode ? "## QA MODE ##" : "#FUJINET GAME LOBBY", username, BOTTOM_PANEL_Y-1);
 #endif
+#ifndef __MSX__
   for(i=0;i<45;i++) waitvsync();
+#endif
 
   refresh_list(true);
   event_loop();
